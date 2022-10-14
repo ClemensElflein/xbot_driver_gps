@@ -1,10 +1,10 @@
 cmake_minimum_required(VERSION 3.0.2)
-project(openbot_driver_gps_ublox)
+project(xbot_driver_gps_ublox)
 
 
 find_package(catkin REQUIRED COMPONENTS
         geometry_msgs
-        openbot_msgs
+        xbot_msgs
         roscpp
         serial
         )

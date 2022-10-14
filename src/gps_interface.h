@@ -3,8 +3,8 @@
 // Copyright (c) 2022 Clemens Elflein. All rights reserved.
 //
 
-#ifndef OPENBOT_WORKSPACE_GPS_INTERFACE_H
-#define OPENBOT_WORKSPACE_GPS_INTERFACE_H
+#ifndef XBOT_WORKSPACE_GPS_INTERFACE_H
+#define XBOT_WORKSPACE_GPS_INTERFACE_H
 
 #include <pthread.h>
 #include <mutex>
@@ -14,7 +14,7 @@
 #include <unistd.h>
 #include <deque>
 
-namespace openbot {
+namespace xbot {
     namespace driver_gps_ublox {
         class GpsInterface {
 
@@ -93,4 +93,4 @@ namespace openbot {
     }
 }
 
-#endif //OPENBOT_WORKSPACE_GPS_INTERFACE_H
+#endif //XBOT_WORKSPACE_GPS_INTERFACE_H

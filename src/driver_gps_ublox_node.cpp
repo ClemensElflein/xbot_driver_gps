@@ -5,12 +5,12 @@
 
 #include "ros/ros.h"
 #include "gps_interface.h"
-#include "openbot_msgs/WheelTick.h"
+#include "xbot_msgs/WheelTick.h"
 
 ros::Publisher pose_pub;
 
 
-using namespace openbot::driver_gps_ublox;
+using namespace xbot::driver_gps_ublox;
 
 GpsInterface gpsInterface;
 
@@ -37,7 +37,7 @@ void gps_log(std::string text, GpsInterface::Level level) {
     }
 }
 
-void wheelTicksReceived(const openbot_msgs::WheelTick::ConstPtr &msg) {
+void wheelTicksReceived(const xbot_msgs::WheelTick::ConstPtr &msg) {
     gpsInterface.send_raw(nullptr, 0);
 }
 

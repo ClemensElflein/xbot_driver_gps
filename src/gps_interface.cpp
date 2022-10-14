@@ -5,7 +5,7 @@
 
 #include "gps_interface.h"
 
-namespace openbot {
+namespace xbot {
     namespace driver_gps_ublox {
         void GpsInterface::set_serial_port(std::string port) {
             port_ = port;

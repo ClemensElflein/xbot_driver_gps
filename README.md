@@ -1,5 +1,5 @@
-# OpenBot Ublox Driver
-This repository contains the ublox driver for the OpenBot platform.
+# Xbot Ublox Driver
+This repository contains the ublox driver for the Xbot platform.
 
 This implementation differs from other popular ublox ROS drivers in the following points:
 - **Low latency, high throughput:** I want this to support the F9R with its internal sensor fusion. No point in having the data after some seconds
@@ -21,9 +21,9 @@ TODO
 
 ## Subscribed Topics:
 - **/rtcm (rtcm_msgs/Message)** RTCM which will be sent to the GPS
-- **/wheel_ticks (openbot_msgs/WheelTick)** WheelTick messages which will be sent to the GPS for sensor fusion (e.g. F9R)
+- **/wheel_ticks (xbot_msgs/WheelTick)** WheelTick messages which will be sent to the GPS for sensor fusion (e.g. F9R)
 
 ## Published Topics:
 - **/pose (geometry_msgs/Pose):** The current pose of the robot for use with legacy systems
-- **/pose_info (openbot_msgs/AbsolutePoseInfo):** The current pose with some additional information about the quality and source of the pose.
+- **/pose_info (xbot_msgs/AbsolutePoseInfo):** The current pose with some additional information about the quality and source of the pose.
 
