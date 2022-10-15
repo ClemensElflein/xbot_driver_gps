@@ -7,6 +7,7 @@ find_package(catkin REQUIRED COMPONENTS
         xbot_msgs
         roscpp
         serial
+        robot_localization
         )
 
 find_package(

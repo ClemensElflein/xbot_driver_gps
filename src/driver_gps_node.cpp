@@ -11,7 +11,7 @@
 ros::Publisher pose_pub;
 
 
-using namespace xbot::driver_gps;
+using namespace xbot::driver::gps;
 
 GpsInterface gpsInterface;
 
@@ -56,7 +56,29 @@ int main(int argc, char **argv) {
     gpsInterface.set_log_function(gps_log);
     gpsInterface.set_baudrate(paramNh.param("baudrate", 38400));
     gpsInterface.set_serial_port(paramNh.param("serial_port", std::string("/dev/ttyACM0")));
-    gpsInterface.start();
+
+    std::string mode = paramNh.param("mode", std::string("absolute"));
+    if(mode == "absolute") {
+        ROS_INFO_STREAM("Using absolute mode for GPS");
+        gpsInterface.set_mode(xbot::driver::gps::GpsInterface::ABSOLUTE);
+        double datum_lat, datum_long, datum_height;
+        bool has_datum = true;
+        has_datum &= paramNh.getParam("datum_lat", datum_lat);
+        has_datum &= paramNh.getParam("datum_long", datum_long);
+        has_datum &= paramNh.getParam("datum_height", datum_height);
+        if(!has_datum) {
+            ROS_ERROR_STREAM("You need to provide datum_lat and datum_long and datum_height in order to use the absolute mode");
+            return 2;
+        }
+        gpsInterface.set_datum(datum_lat, datum_long, datum_height);
+    } else if(mode == "relative") {
+        ROS_INFO_STREAM("Using relative mode for GPS");
+        gpsInterface.set_mode(xbot::driver::gps::GpsInterface::RELATIVE);
+    }
+
+    if(!gpsInterface.start()) {
+        return 1;
+    }
 
     // Subscribe to wheel ticks
     ros::Subscriber wheel_tick_sub = n.subscribe("wheel_ticks", 0, wheelTicksReceived, ros::TransportHints().tcpNoDelay(true));
