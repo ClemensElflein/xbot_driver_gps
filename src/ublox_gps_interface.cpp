@@ -3,15 +3,18 @@
 // Copyright (c) 2022 Clemens Elflein. All rights reserved.
 //
 
-#include "gps_interface.h"
+#include "ublox_gps_interface.h"
+
 
 namespace xbot {
-    namespace driver_gps_ublox {
+    namespace driver_gps {
         void GpsInterface::set_serial_port(std::string port) {
             port_ = port;
         }
 
         bool GpsInterface::start() {
+
+            gps_state_ = {0};
 
             if (baudrate_ == 0) {
                 log("no baudrate set, can't start", ERROR);
@@ -179,7 +182,7 @@ namespace xbot {
                 // skip to the 0xb5
                 if (rx_buffer_[0] != 0x05 && rx_buffer_[1] != 0x62) {
                     rx_buffer_.pop_front();
-                    log("skipping rx byte", VERBOSE);
+                    log("skipping rx byte", WARN);
 
                     // check again
                     continue;
@@ -206,11 +209,11 @@ namespace xbot {
 
 
                 if (!validate_checksum(packet.data(), packet.size())) {
-                    log("got ubx packet with invalid checksum", WARN);
                     continue;
                 }
 
-                log("got valid packet!", VERBOSE);
+                process_ubx_packet(packet.data()+2, packet.size()-2);
+
             }
 
             // we need at least 6 bytes to process anything
@@ -226,10 +229,57 @@ namespace xbot {
                 ck_b += ck_a;
             }
 
-            log("expected: a = " + std::to_string(packet[size - 2]) + ", b = " + std::to_string(packet[size - 1]), VERBOSE);
-            log("real: a = " + std::to_string(ck_a) + ", b = " + std::to_string(ck_b), VERBOSE);
+            bool valid = packet[size - 2] == ck_a && packet[size - 1] == ck_b;
 
-            return packet[size - 2] == ck_a && packet[size - 1] == ck_b;
+            if (!valid) {
+                log("got ubx packet with invalid checksum", WARN);
+                log("expected: a = " + std::to_string(packet[size - 2]) + ", b = " + std::to_string(packet[size - 1]),
+                    VERBOSE);
+                log("real: a = " + std::to_string(ck_a) + ", b = " + std::to_string(ck_b), VERBOSE);
+            }
+
+            return valid;
+        }
+
+        void GpsInterface::process_ubx_packet(const uint8_t *data, const size_t &size) {
+            uint16_t packet_id = data[0] << 8 | data[1];
+            switch (packet_id) {
+                case xbot::driver_gps::UbxNavPvt::CLASS_ID << 8 | xbot::driver_gps::UbxNavPvt::MESSAGE_ID: {
+                    if(size-6 == sizeof(struct UbxNavPvt)) {
+                        log("got navpvt", VERBOSE);
+                        const auto *msg = reinterpret_cast<const UbxNavPvt *>(data+4);
+                        handle_nav_pvt(msg);
+                    } else {
+                        log("size mismatch for PVT message!", WARN);
+                    }
+                }
+                    break;
+                default:
+                    log(std::string(
+                            "got unknown ubx message. class id = " + std::to_string(data[0]) + ", message id = " +
+                            std::to_string(data[1])), VERBOSE);
+                    break;
+            }
+        }
+
+        void GpsInterface::handle_nav_pvt(const UbxNavPvt *msg) {
+            // We have received a nav pvt message, copy to GPS state
+            std::unique_lock<std::mutex> lk(gps_state_mutex_);
+            gps_state_.posN = msg->lat;
+            gps_state_.posE = msg->lon;
+            gps_state_cv_.notify_all();
+        }
+
+        bool GpsInterface::get_gps_result(GpsInterface::GpsState * const result) {
+            std::unique_lock<std::mutex> lk(gps_state_mutex_);
+            // wait for new data in the gps state. We set a timeout so that this will return even if no data arrives.
+            if (std::cv_status::timeout == gps_state_cv_.wait_for(lk, std::chrono::milliseconds(1000))) {
+                log("gps update timeout - no new data", VERBOSE);
+                return false;
+            }
+            // copy the result
+            *result = gps_state_;
+            return true;
         }
 
 

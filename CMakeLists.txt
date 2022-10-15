@@ -30,11 +30,11 @@ include_directories(
         ${catkin_INCLUDE_DIRS}
 )
 
-add_executable(driver_gps_ublox_node
-        src/driver_gps_ublox_node.cpp
-        src/gps_interface.h
-        src/gps_interface.cpp
-        )
+add_executable(driver_gps_node
+        src/driver_gps_node.cpp
+        src/ublox_gps_interface.h
+        src/ublox_gps_interface.cpp
+        src/ubx_datatypes.h)
 
-add_dependencies(driver_gps_ublox_node ${catkin_EXPORTED_TARGETS} ${${PROJECT_NAME}_EXPORTED_TARGETS})
-target_link_libraries(driver_gps_ublox_node ${catkin_LIBRARIES})
+add_dependencies(driver_gps_node ${catkin_EXPORTED_TARGETS} ${${PROJECT_NAME}_EXPORTED_TARGETS})
+target_link_libraries(driver_gps_node ${catkin_LIBRARIES})
