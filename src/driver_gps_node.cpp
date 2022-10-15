@@ -21,7 +21,7 @@ bool allow_verbose_logging = false;
 void gps_log(std::string text, GpsInterface::Level level) {
     switch (level) {
         case GpsInterface::Level::VERBOSE:
-            if(!allow_verbose_logging) {
+            if (!allow_verbose_logging) {
                 return;
             }
             ROS_INFO_STREAM("[driver_gps] " << text);
@@ -63,7 +63,6 @@ void convert_gps_result(const GpsInterface::GpsState &state, xbot_msgs::Absolute
     result.orientation_accuracy = state.vehicle_heading_accuracy;
 
 
-
     double heading = state.vehicle_heading_valid ? state.vehicle_heading : state.motion_heading;
     double headingAcc = state.vehicle_heading_valid ? state.vehicle_heading_accuracy : state.motion_heading_accuracy;
 
@@ -100,7 +99,7 @@ int main(int argc, char **argv) {
     ros::NodeHandle paramNh("~");
 
     allow_verbose_logging = paramNh.param("verbose", false);
-    if(allow_verbose_logging) {
+    if (allow_verbose_logging) {
         ROS_WARN("GPS node has verbose logging enabled");
     }
 
@@ -109,7 +108,7 @@ int main(int argc, char **argv) {
     gpsInterface.set_serial_port(paramNh.param("serial_port", std::string("/dev/ttyACM0")));
 
     std::string mode = paramNh.param("mode", std::string("absolute"));
-    if(mode == "absolute") {
+    if (mode == "absolute") {
         ROS_INFO_STREAM("Using absolute mode for GPS");
         gpsInterface.set_mode(xbot::driver::gps::GpsInterface::ABSOLUTE);
         double datum_lat, datum_long, datum_height;
@@ -117,22 +116,24 @@ int main(int argc, char **argv) {
         has_datum &= paramNh.getParam("datum_lat", datum_lat);
         has_datum &= paramNh.getParam("datum_long", datum_long);
         has_datum &= paramNh.getParam("datum_height", datum_height);
-        if(!has_datum) {
-            ROS_ERROR_STREAM("You need to provide datum_lat and datum_long and datum_height in order to use the absolute mode");
+        if (!has_datum) {
+            ROS_ERROR_STREAM(
+                    "You need to provide datum_lat and datum_long and datum_height in order to use the absolute mode");
             return 2;
         }
         gpsInterface.set_datum(datum_lat, datum_long, datum_height);
-    } else if(mode == "relative") {
+    } else if (mode == "relative") {
         ROS_INFO_STREAM("Using relative mode for GPS");
         gpsInterface.set_mode(xbot::driver::gps::GpsInterface::RELATIVE);
     }
 
-    if(!gpsInterface.start()) {
+    if (!gpsInterface.start()) {
         return 1;
     }
 
     // Subscribe to wheel ticks
-    ros::Subscriber wheel_tick_sub = paramNh.subscribe("wheel_ticks", 0, wheel_tick_received, ros::TransportHints().tcpNoDelay(true));
+    ros::Subscriber wheel_tick_sub = paramNh.subscribe("wheel_ticks", 0, wheel_tick_received,
+                                                       ros::TransportHints().tcpNoDelay(true));
 
     ros::Publisher pose_pub = paramNh.advertise<geometry_msgs::PoseWithCovariance>("pose", 1);
     ros::Publisher xbot_pose_pub = paramNh.advertise<xbot_msgs::AbsolutePose>("xb_pose", 1);
@@ -140,9 +141,9 @@ int main(int argc, char **argv) {
     GpsInterface::GpsState state = {0};
     xbot_msgs::AbsolutePose pose_result;
 
-    while(ros::ok()) {
+    while (ros::ok()) {
         ros::spinOnce();
-        if(gpsInterface.get_gps_result(&state)) {
+        if (gpsInterface.get_gps_result(&state)) {
             // new state received, publish
             convert_gps_result(state, pose_result);
             xbot_pose_pub.publish(pose_result);
