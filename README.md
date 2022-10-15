@@ -1,9 +1,16 @@
-# Xbot Ublox Driver
-This repository contains the ublox driver for the Xbot platform.
+# xBot u-blox Driver
+This repository contains the u-blox driver for the xBot platform.
 
-This implementation differs from other popular ublox ROS drivers in the following points:
-- **Low latency, high throughput:** I want this to support the F9R with its internal sensor fusion. No point in having the data after some seconds
-- **Use the current configuration protocol:** since we're only supporting the newer generations of ublox chips (9+), we can use the new configuration protocol instead of the deprecated one.
+This is a no-nonsense, high performance driver for the latest u-blox devices. It will eventually also get NMEA support, but for now ubx only.
+
+This implementation differs from other popular u-blox ROS drivers in the following points:
+- **Low latency:** I want this to support the F9R with its internal sensor fusion. No point in having the data after some seconds. 
+  - The driver reads the header first and then the exact amount of bytes needed to process the next packet which gets sent immediately before reading the next one. No large buffer which eventually gets parsed at some point in the future. This way, the latency is kept to a minimum.
+  - The driver will notice congestion on the port in both directions:
+    - For RX it looks at the message timestamps and compares them with the ROS timestamps. If there's a large jump, it prints an error
+    - For TX it looks at the serial write buffer and checks how long it takes for it to clear. If the buffer fills or we need too much time to get the write lock, it prints an error.
+    - For wheel ticks it is able to read back the ESF-RAW messages to calculate the wheel-tick timings on the u-blox chip. This way we can be 100% sure that the timing was as expected.
+- **Use the latest configuration protocol:** since we're only supporting the newer generations of u-blox chips (9+), we can use the new configuration protocol instead of the deprecated one.
 - **Simple code base:** With less code, there are hopefully fewer errors
 
 

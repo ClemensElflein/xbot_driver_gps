@@ -5,6 +5,7 @@
 
 #include "ublox_gps_interface.h"
 
+using namespace std::chrono;
 
 namespace xbot {
     namespace driver {
@@ -17,12 +18,12 @@ namespace xbot {
 
                 gps_state_ = {0};
 
-                if(mode_ != ABSOLUTE && mode_ != RELATIVE) {
+                if (mode_ != ABSOLUTE && mode_ != RELATIVE) {
                     log("no mode set, can't start", ERROR);
                     return false;
                 }
 
-                if(mode_ == ABSOLUTE && (isnan(datum_n_)||isnan(datum_e_)||isnan(datum_u_))) {
+                if (mode_ == ABSOLUTE && (isnan(datum_n_) || isnan(datum_e_) || isnan(datum_u_))) {
                     log("absolute positioning with invalid datum, can't start", ERROR);
                     return false;
                 }
@@ -98,6 +99,9 @@ namespace xbot {
             void *GpsInterface::rx_thread() {
                 std::vector<uint8_t> buf;
 
+                gps_state_valid_ = false;
+                found_header_ = false;
+
                 // stores the amount of bytes to read. At first we have this small until the parse_rx_buffer is able to know
                 // how many more bytes it needs. then we read that amount of data, before parsing again.
                 // This reduces latency, because we don't fill a buffer before reading and we don't parse on every byte as soon as we know how many
@@ -109,6 +113,8 @@ namespace xbot {
                     if (!serial_.isOpen()) {
                         // start small
                         bytes_to_read = 6;
+                        found_header_ = false;
+                        gps_state_valid_ = false;
                         log("opening serial port: " + port_ + " with baudrate: " + std::to_string(baudrate_), INFO);
                         try {
                             serial_.setPort(port_);
@@ -149,7 +155,6 @@ namespace xbot {
             }
 
             bool GpsInterface::send_raw(const void *data, size_t size) {
-                using namespace std::chrono;
                 time_point<std::chrono::steady_clock> start = steady_clock::now();
                 std::unique_lock<std::mutex> lk(tx_mutex_);
                 auto millis = duration_cast<milliseconds>(steady_clock::now() - start).count();
@@ -194,9 +199,15 @@ namespace xbot {
                     if (rx_buffer_[0] != 0x05 && rx_buffer_[1] != 0x62) {
                         rx_buffer_.pop_front();
                         log("skipping rx byte", WARN);
-
+                        found_header_ = false;
                         // check again
                         continue;
+                    }
+
+                    // we're here the first time for this packet, note the time
+                    if (!found_header_) {
+                        current_gps_header_time_ = steady_clock::now();
+                        found_header_ = true;
                     }
 
                     // get the length first to check, if we already got enough bytes
@@ -220,11 +231,13 @@ namespace xbot {
 
 
                     if (!validate_checksum(packet.data(), packet.size())) {
+                        // invalid packet, reset header
+                        found_header_ = false;
                         continue;
                     }
 
-                    process_ubx_packet(packet.data() + 2, packet.size() - 2);
-
+                    process_ubx_packet(current_gps_header_time_, packet.data() + 2, packet.size() - 2);
+                    found_header_ = false;
                 }
 
                 // we need at least 6 bytes to process anything
@@ -253,14 +266,15 @@ namespace xbot {
                 return valid;
             }
 
-            void GpsInterface::process_ubx_packet(const uint8_t *data, const size_t &size) {
+            void GpsInterface::process_ubx_packet(const time_point<steady_clock> &header_stamp, const uint8_t *data,
+                                                  const size_t &size) {
                 uint16_t packet_id = data[0] << 8 | data[1];
                 switch (packet_id) {
                     case xbot::driver::gps::UbxNavPvt::CLASS_ID << 8 | xbot::driver::gps::UbxNavPvt::MESSAGE_ID: {
                         if (size - 6 == sizeof(struct UbxNavPvt)) {
                             log("got navpvt", VERBOSE);
                             const auto *msg = reinterpret_cast<const UbxNavPvt *>(data + 4);
-                            handle_nav_pvt(msg);
+                            handle_nav_pvt(header_stamp, msg);
                         } else {
                             log("size mismatch for PVT message!", WARN);
                         }
@@ -274,21 +288,132 @@ namespace xbot {
                 }
             }
 
-            void GpsInterface::handle_nav_pvt(const UbxNavPvt *msg) {
-                double lat = (double)msg->lat/10000000.0;
-                double lon = (double)msg->lon/10000000.0;
-                double u = (double)msg->hMSL / 1000.0;
-                double e,n;
-                double gps_accuracy_m = (double) sqrt(pow((double)msg->hAcc*msg->hAcc,2) + pow((double)msg->vAcc*msg->vAcc,2)) / 1000.0f;
+            void GpsInterface::handle_nav_pvt(const time_point<steady_clock> &header_stamp, const UbxNavPvt *msg) {
+                // We have received a nav pvt message, copy to GPS state
+                std::unique_lock<std::mutex> lk(gps_state_mutex_);
 
+                // check, if message is even roughly valid. If not - ignore it.
+                bool gnssFixOK = (msg->flags & 0b0000001);
+                bool invalidLlh = (msg->flags3 & 0b1);
+                if (!gnssFixOK) {
+                    gps_state_valid_ = false;
+                    log("invalid gnssFix - dropping message", WARN);
+                    return;
+                }
+                if (invalidLlh) {
+                    gps_state_valid_ = false;
+                    log("invalid lat, lon, height - dropping message", WARN);
+                    return;
+                }
+
+                if (gps_state_valid_) {
+                    auto time_diff = duration_cast<milliseconds>(header_stamp - last_gps_message).count();
+                    uint32_t pvt_diff = msg->iTOW - gps_state_iTOW_;
+
+                    double diff = (double) time_diff - (double) pvt_diff;
+
+                    // Check, if time was spent since the last packet. If not, the data was already in some buffer somewhere
+                    if (time_diff == 0) {
+                        log("gps time diff was: " + std::to_string(pvt_diff) + ", host time diff was: " +
+                            std::to_string(time_diff) +
+                            ". This means either your serial link is too slow, or there's buffering somewhere.", ERROR);
+                    } else if (abs(diff) > 100.0) {
+                        log("gps time diff was: " + std::to_string(pvt_diff) + ", host time diff was: " +
+                            std::to_string(time_diff), ERROR);
+                    }
+                }
+
+                switch (msg->fixType) {
+                    case 1:
+                        gps_state_.fix_type = GpsState::FixType::DR_ONLY;
+                        break;
+                    case 2:
+                        gps_state_.fix_type = GpsState::FixType::FIX_2D;
+                        break;
+                    case 3:
+                        gps_state_.fix_type = GpsState::FixType::FIX_3D;
+                        break;
+                    case 4:
+                        gps_state_.fix_type = GpsState::FixType::GNSS_DR_COMBINED;
+                        break;
+                    default:
+                        gps_state_.fix_type = GpsState::FixType::NO_FIX;
+                        break;
+                }
+
+
+                bool diffSoln = (msg->flags & 0b0000010) >> 1;
+                auto carrSoln = (uint8_t) ((msg->flags & 0b11000000) >> 6);
+                if(diffSoln) {
+                    switch (carrSoln) {
+                        case 1:
+                            gps_state_.rtk_type = GpsState::RTK_FLOAT;
+                            break;
+                        case 2:
+                            gps_state_.rtk_type = GpsState::RTK_FLOAT;
+                            break;
+                        default:
+                            gps_state_.rtk_type = GpsState::RTK_NONE;
+                            break;
+                    }
+                } else {
+                    gps_state_.rtk_type = GpsState::RTK_NONE;
+                }
+
+
+
+                // Calculate the position
+                double lat = (double) msg->lat / 10000000.0;
+                double lon = (double) msg->lon / 10000000.0;
+                double u = (double) msg->hMSL / 1000.0;
+                double e, n;
                 std::string zone;
                 RobotLocalization::NavsatConversions::LLtoUTM(lat, lon, n, e, zone);
 
-                // We have received a nav pvt message, copy to GPS state
-                std::unique_lock<std::mutex> lk(gps_state_mutex_);
-                gps_state_.posE = e - datum_e_;
-                gps_state_.posN = n - datum_n_;
-                gps_state_.posU = u - datum_u_;
+                gps_state_.position_valid = true;
+                gps_state_.pos_e = e - datum_e_;
+                gps_state_.pos_n = n - datum_n_;
+                gps_state_.pos_u = u - datum_u_;
+                gps_state_.position_accuracy = (double) sqrt(
+                        pow((double) msg->hAcc / 1000.0, 2) + pow((double) msg->vAcc / 1000.0, 2));;
+
+                gps_state_.vel_e = msg->velE / 1000.0;
+                gps_state_.vel_n = msg->velN / 1000.0;
+                gps_state_.vel_u = -msg->velD / 1000.0;
+
+
+
+                double headAcc = (msg->headAcc / 100000.0) * (M_PI/180.0);
+
+                double hedVeh = msg->headVeh / 100000.0;
+                hedVeh = -hedVeh*(M_PI/180.0);
+                hedVeh = fmod(hedVeh + (M_PI_2), 2.0 * M_PI);
+                while (hedVeh < 0) {
+                    hedVeh += M_PI * 2.0;
+                }
+
+                double headMotion = msg->headMot / 100000.0;
+                headMotion = -headMotion*(M_PI/180.0);
+                headMotion = fmod(headMotion + (M_PI_2), 2.0 * M_PI);
+                while (headMotion < 0) {
+                    headMotion += M_PI * 2.0;
+                }
+
+                // There's no flag for that. Assume it's good
+                gps_state_.motion_heading_valid = true;
+                gps_state_.motion_heading = headMotion;
+                gps_state_.motion_heading_accuracy = headAcc;
+
+                // headAcc is the same for both
+                gps_state_.vehicle_heading_valid =(msg->flags & 0b100000) >> 5;
+                gps_state_.vehicle_heading_accuracy = headAcc;
+                gps_state_.vehicle_heading = hedVeh;
+
+                // Latency tracking
+                last_gps_message = header_stamp;
+                gps_state_valid_ = true;
+                gps_state_iTOW_ = msg->iTOW;
+
                 gps_state_cv_.notify_all();
             }
 

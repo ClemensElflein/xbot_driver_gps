@@ -72,7 +72,7 @@ namespace xbot {
                 int32_t velE;
                 int32_t velD;
                 int32_t gSpeed;
-                int32_t heading;
+                int32_t headMot;
                 uint32_t sAcc;
                 uint32_t headAcc;
                 uint16_t pDOP;

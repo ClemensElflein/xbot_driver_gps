@@ -31,8 +31,7 @@ namespace xbot {
                         DR_ONLY = 1,
                         FIX_2D = 2,
                         FIX_3D = 3,
-                        GNSS_DR_COMBINED = 4,
-                        TIME_ONLY = 5
+                        GNSS_DR_COMBINED = 4
                     };
 
                     enum RTKType {
@@ -41,17 +40,24 @@ namespace xbot {
                         RTK_FIX = 2
                     };
 
-                    // Position and velocity
-                    double posE, posN, posU, velE, velN, velU;
-
-                    // Position accuracy in m
-                    double positionAccuracy;
-
-                    // Heading in rad
-                    double heading;
-
+                    // Position
                     bool position_valid;
-                    bool heading_valid;
+                    // Position accuracy in m
+                    double position_accuracy;
+                    double pos_e, pos_n, pos_u;
+
+                    // Motion
+                    bool motion_heading_valid;
+                    double vel_e, vel_n, vel_u;
+                    double motion_heading_accuracy;
+                    double motion_heading;
+
+                    // Heading
+                    bool vehicle_heading_valid;
+                    double vehicle_heading_accuracy;
+                    // Vehicle heading in rad.
+                    double vehicle_heading;
+
 
                     FixType fix_type;
                     RTKType rtk_type;
@@ -126,21 +132,26 @@ namespace xbot {
                 /**
                  * Gets called with a valid ubx frame and switches to the handle_xxx functions
                  */
-                void process_ubx_packet(const uint8_t *data, const size_t &size);
+                void process_ubx_packet(const std::chrono::time_point<std::chrono::steady_clock> &header_stamp, const uint8_t *data, const size_t &size);
 
                 /**
                  * Validate a frame, return true on valid checksum
                  */
                 bool validate_checksum(const uint8_t *packet, size_t size);
 
-                void handle_nav_pvt(const UbxNavPvt *msg);
+                void handle_nav_pvt(const std::chrono::time_point<std::chrono::steady_clock> &header_stamp, const UbxNavPvt *msg);
 
                 // Current state
                 // Mutex for gps_state_
                 std::mutex gps_state_mutex_;
                 // Condition variable for gps_state_
                 std::condition_variable gps_state_cv_;
+
+                // Track the time of the last navigation solution
+                std::chrono::time_point<std::chrono::steady_clock> last_gps_message;
+                bool gps_state_valid_;
                 GpsState gps_state_;
+                uint32_t gps_state_iTOW_;
 
                 // Set to true to stop the threads
                 bool stopped_;
@@ -167,6 +178,12 @@ namespace xbot {
 
                 double datum_e_, datum_n_, datum_u_;
                 std::string datum_zone_;
+
+
+                // flag if we found the header for time tracking only
+                bool found_header_;
+                std::chrono::time_point<std::chrono::steady_clock> current_gps_header_time_;
+
             };
         }
     }

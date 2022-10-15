@@ -13,6 +13,8 @@
   <build_depend>roscpp</build_depend>
   <build_depend>serial</build_depend>
   <build_depend>robot_localization</build_depend>
+  <build_depend>tf2</build_depend>
+  <build_depend>tf2_geometry_msgs</build_depend>
   <build_export_depend>xbot_msgs</build_export_depend>
   <build_export_depend>roscpp</build_export_depend>
   <build_export_depend>serial</build_export_depend>

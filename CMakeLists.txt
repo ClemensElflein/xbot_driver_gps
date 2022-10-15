@@ -8,6 +8,8 @@ find_package(catkin REQUIRED COMPONENTS
         roscpp
         serial
         robot_localization
+        tf2_geometry_msgs
+        tf2
         )
 
 find_package(

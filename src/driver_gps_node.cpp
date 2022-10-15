@@ -6,10 +6,10 @@
 #include "ros/ros.h"
 #include "ublox_gps_interface.h"
 #include "xbot_msgs/WheelTick.h"
-#include "geometry_msgs/Pose.h"
-
-ros::Publisher pose_pub;
-
+#include "geometry_msgs/PoseWithCovariance.h"
+#include "xbot_msgs/AbsolutePose.h"
+#include <tf2/LinearMath/Quaternion.h>
+#include <tf2_geometry_msgs/tf2_geometry_msgs.h>
 
 using namespace xbot::driver::gps;
 
@@ -38,8 +38,59 @@ void gps_log(std::string text, GpsInterface::Level level) {
     }
 }
 
-void wheelTicksReceived(const xbot_msgs::WheelTick::ConstPtr &msg) {
+void wheel_tick_received(const xbot_msgs::WheelTick::ConstPtr &msg) {
 //    gpsInterface.send_raw(nullptr, 0);
+}
+
+void convert_gps_result(const GpsInterface::GpsState &state, xbot_msgs::AbsolutePose &result) {
+    result.source = xbot_msgs::AbsolutePose::SOURCE_GPS;
+    result.flags = 0;
+    switch (state.rtk_type) {
+        case GpsInterface::GpsState::RTK_FLOAT:
+            result.flags = xbot_msgs::AbsolutePose::FLAG_GPS_RTK | xbot_msgs::AbsolutePose::FLAG_GPS_RTK_FLOAT;
+            break;
+        case GpsInterface::GpsState::RTK_FIX:
+            result.flags = xbot_msgs::AbsolutePose::FLAG_GPS_RTK | xbot_msgs::AbsolutePose::FLAG_GPS_RTK_FIXED;
+            break;
+        default:
+            result.flags = 0;
+    }
+
+
+    result.orientation_valid = state.vehicle_heading_valid;
+    result.motion_vector_valid = true;
+    result.position_accuracy = state.position_accuracy;
+    result.orientation_accuracy = state.vehicle_heading_accuracy;
+
+
+
+    double heading = state.vehicle_heading_valid ? state.vehicle_heading : state.motion_heading;
+    double headingAcc = state.vehicle_heading_valid ? state.vehicle_heading_accuracy : state.motion_heading_accuracy;
+
+    result.pose.pose.position.x = state.pos_e;
+    result.pose.pose.position.y = state.pos_n;
+    result.pose.pose.position.z = state.pos_u;
+
+    tf2::Quaternion q_mag(0.0, 0.0, heading);
+    result.pose.pose.orientation = tf2::toMsg(q_mag);
+
+    result.pose.covariance = {
+            pow(state.position_accuracy, 2), 0.0, 0.0, 0.0, 0.0, 0.0,
+            0.0, pow(state.position_accuracy, 2), 0.0, 0.0, 0.0, 0.0,
+            0.0, 0.0, 0.0, pow(state.position_accuracy, 2), 0.0, 0.0,
+            0.0, 0.0, 0.0, 10000.0, 0.0, 0.0,
+            0.0, 0.0, 0.0, 0.0, 10000.0, 0.0,
+            0.0, 0.0, 0.0, 0.0, 0.0, pow(headingAcc, 2)
+    };
+
+
+    result.motion_vector.x = state.vel_e;
+    result.motion_vector.y = state.vel_n;
+    result.motion_vector.z = state.vel_u;
+
+    result.vehicle_heading = state.vehicle_heading;
+    result.motion_heading = state.motion_heading;
+
 }
 
 int main(int argc, char **argv) {
@@ -81,21 +132,21 @@ int main(int argc, char **argv) {
     }
 
     // Subscribe to wheel ticks
-    ros::Subscriber wheel_tick_sub = n.subscribe("wheel_ticks", 0, wheelTicksReceived, ros::TransportHints().tcpNoDelay(true));
+    ros::Subscriber wheel_tick_sub = paramNh.subscribe("wheel_ticks", 0, wheel_tick_received, ros::TransportHints().tcpNoDelay(true));
 
-    pose_pub = n.advertise<geometry_msgs::Pose>("pose", 1);
+    ros::Publisher pose_pub = paramNh.advertise<geometry_msgs::PoseWithCovariance>("pose", 1);
+    ros::Publisher xbot_pose_pub = paramNh.advertise<xbot_msgs::AbsolutePose>("xb_pose", 1);
 
     GpsInterface::GpsState state = {0};
-    geometry_msgs::Pose pose_result;
+    xbot_msgs::AbsolutePose pose_result;
 
     while(ros::ok()) {
         ros::spinOnce();
         if(gpsInterface.get_gps_result(&state)) {
             // new state received, publish
-            pose_result.position.x = state.posE;
-            pose_result.position.y = state.posN;
-            pose_result.position.z = state.posU;
-            pose_pub.publish(pose_result);
+            convert_gps_result(state, pose_result);
+            xbot_pose_pub.publish(pose_result);
+            pose_pub.publish(pose_result.pose);
         }
     }
 
