@@ -10,7 +10,7 @@
 #include "xbot_msgs/AbsolutePose.h"
 #include <tf2/LinearMath/Quaternion.h>
 #include <tf2_geometry_msgs/tf2_geometry_msgs.h>
-#include "std_msgs/UInt32MultiArray.h"
+#include "std_msgs/UInt32.h"
 #include "sensor_msgs/Imu.h"
 #include "rtcm_msgs/Message.h"
 
@@ -18,7 +18,9 @@ using namespace xbot::driver::gps;
 
 ros::Publisher pose_pub;
 ros::Publisher xbot_pose_pub;
-ros::Publisher latency_pub;
+ros::Publisher latency_pub1;
+ros::Publisher latency_pub2;
+ros::Publisher latency_pub3;
 ros::Publisher imu_pub;
 
 GpsInterface gpsInterface;
@@ -26,7 +28,7 @@ GpsInterface gpsInterface;
 bool allow_verbose_logging = false;
 xbot_msgs::AbsolutePose pose_result;
 
-std_msgs::UInt32MultiArray latency_msg;
+std_msgs::UInt32 latency_msg1,latency_msg2,latency_msg3;
 sensor_msgs::Imu imu_msg;
 
 void gps_log(std::string text, GpsInterface::Level level) {
@@ -50,7 +52,7 @@ void gps_log(std::string text, GpsInterface::Level level) {
 }
 
 void wheel_tick_received(const xbot_msgs::WheelTick::ConstPtr &msg) {
-    gpsInterface.send_wheel_ticks(msg->stamp.nsec / 1000000, msg->wheel_direction_rl, msg->wheel_ticks_rl,
+    gpsInterface.send_wheel_ticks(static_cast<uint32_t>(msg->stamp.toNSec() / 1000000), msg->wheel_direction_rl, msg->wheel_ticks_rl,
                                   msg->wheel_direction_rr, msg->wheel_ticks_rr);
 }
 
@@ -119,14 +121,12 @@ void gps_state_received(const GpsInterface::GpsState &state) {
 
 void
 wheel_latency_received(uint32_t wheel_tick_stamp, uint32_t wheel_tick_stamp_ublox, uint32_t wheel_tick_round_trip_stamp) {
-    latency_msg.layout.dim.resize(1);
-    latency_msg.layout.dim[0].label = "wheel_tick_stamp";
-    latency_msg.layout.dim[0].size = 3;
-    latency_msg.layout.dim[0].stride = 3;
-    latency_msg.data.push_back(wheel_tick_stamp);
-    latency_msg.data.push_back(wheel_tick_stamp_ublox);
-    latency_msg.data.push_back(wheel_tick_round_trip_stamp);
-    latency_pub.publish(latency_msg);
+    latency_msg1.data = wheel_tick_stamp;
+    latency_msg2.data = wheel_tick_stamp_ublox;
+    latency_msg3.data = wheel_tick_round_trip_stamp;
+    latency_pub1.publish(latency_msg1);
+    latency_pub2.publish(latency_msg2);
+    latency_pub3.publish(latency_msg3);
 }
 
 void
@@ -195,7 +195,9 @@ int main(int argc, char **argv) {
     gpsInterface.set_state_callback(gps_state_received);
 
     if (paramNh.param("publish_latency", true)) {
-        latency_pub = paramNh.advertise<std_msgs::UInt32MultiArray>("wheel_tick_latency", 100);
+        latency_pub1 = paramNh.advertise<std_msgs::UInt32>("wheel_tick_stamp_esc", 100);
+        latency_pub2 = paramNh.advertise<std_msgs::UInt32>("wheel_tick_ublox_rx", 100);
+        latency_pub3 = paramNh.advertise<std_msgs::UInt32>("wheel_tick_round_trip_host", 100);
         gpsInterface.set_wheel_latency_callback(wheel_latency_received);
     }
     gpsInterface.set_imu_callback(imu_received);
