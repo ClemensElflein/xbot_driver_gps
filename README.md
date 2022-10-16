@@ -20,6 +20,7 @@ This implementation differs from other popular u-blox ROS drivers in the followi
         - :wrench: For wheel ticks it is able to read back the ESF-RAW messages to calculate the wheel-tick timings on
           the u-blox chip. This way we can be 100% sure that the timing was as expected.
 - **:heavy_check_mark: IMU support:** Receives ESF-MEAS messages and builds sensor_msgs/Imu messages
+- **:heavy_check_mark: RTCM support:** Sends RTCM from ROS to the u-blox
 - **:wrench: Scheduling Priority:** If in sensor fusion mode, the driver tries to get scheduled faster than other
   processes. If in "normal" GPS mode, it's just a normal process.
 - **:wrench: Wheel Tick Support:** The driver is able to send wheel ticks to the F9R for the internal sensor fusion to

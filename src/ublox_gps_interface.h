@@ -120,6 +120,8 @@ namespace xbot {
                 send_wheel_ticks(uint32_t timestamp, bool direction_left, uint32_t ticks_left, bool direction_right,
                                  uint32_t ticks_right);
 
+                void send_rtcm(const uint8_t *data, size_t size);
+
             private:
 
                 // Helpers to call the threads, since these are member functions

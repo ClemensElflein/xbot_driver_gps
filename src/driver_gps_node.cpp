@@ -12,7 +12,7 @@
 #include <tf2_geometry_msgs/tf2_geometry_msgs.h>
 #include "std_msgs/UInt32MultiArray.h"
 #include "sensor_msgs/Imu.h"
-#include "ros/time.h"
+#include "rtcm_msgs/Message.h"
 
 using namespace xbot::driver::gps;
 
@@ -52,6 +52,10 @@ void gps_log(std::string text, GpsInterface::Level level) {
 void wheel_tick_received(const xbot_msgs::WheelTick::ConstPtr &msg) {
     gpsInterface.send_wheel_ticks(msg->stamp.nsec / 1000000, msg->wheel_direction_rl, msg->wheel_ticks_rl,
                                   msg->wheel_direction_rr, msg->wheel_ticks_rr);
+}
+
+void rtcm_received(const rtcm_msgs::Message::ConstPtr &rtcm) {
+    gpsInterface.send_rtcm(rtcm->message.data(), rtcm->message.size());
 }
 
 void convert_gps_result(const GpsInterface::GpsState &state, xbot_msgs::AbsolutePose &result) {
@@ -179,6 +183,9 @@ int main(int argc, char **argv) {
     // Subscribe to wheel ticks
     ros::Subscriber wheel_tick_sub = paramNh.subscribe("wheel_ticks", 0, wheel_tick_received,
                                                        ros::TransportHints().tcpNoDelay(true));
+    ros::Subscriber rtcm_sub = n.subscribe("rtcm", 0, rtcm_received,
+                                                       ros::TransportHints().tcpNoDelay(true));
+
 
     pose_pub = paramNh.advertise<geometry_msgs::PoseWithCovariance>("pose", 10);
     xbot_pose_pub = paramNh.advertise<xbot_msgs::AbsolutePose>("xb_pose", 10);

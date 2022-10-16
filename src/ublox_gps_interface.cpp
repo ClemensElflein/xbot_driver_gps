@@ -462,6 +462,10 @@ namespace xbot {
                 imu_callback = nullptr;
             }
 
+            void GpsInterface::send_rtcm(const uint8_t *data, size_t size) {
+                send_raw(data,size);
+            }
+
             void GpsInterface::send_wheel_ticks(uint32_t timestamp, bool direction_left, uint32_t ticks_left,
                                                 bool direction_right, uint32_t ticks_right) {
                 uint8_t frame[8 + 2 * 4 + 8] = {0};
