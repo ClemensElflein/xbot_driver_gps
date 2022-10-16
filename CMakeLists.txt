@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.0.2)
-project(xbot_driver_gps_ublox)
+project(xbot_driver_gps)
 
 
 find_package(catkin REQUIRED COMPONENTS
