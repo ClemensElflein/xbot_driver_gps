@@ -324,7 +324,7 @@ namespace xbot {
 
                 if (!gnssFixOK) {
                     gps_state_valid_ = false;
-//                    log("invalid gnssFix - dropping message", WARN);
+                    log("invalid gnssFix - dropping message", WARN);
                     return;
                 }
                 if (invalidLlh) {
@@ -581,7 +581,7 @@ namespace xbot {
                                 imu_state_.received_time = duration_cast<milliseconds>(
                                         header_stamp.time_since_epoch()).count();
                             }
-                            imu_state_.gx = (double) data / 4096.0 * (M_PI / 180.0);
+                            imu_state_.gx = -(double) data / 4096.0 * (M_PI / 180.0);
                             imu_fields_valid_ |= 0b100;
                             break;
                         case 16:

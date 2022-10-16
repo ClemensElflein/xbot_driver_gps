@@ -59,6 +59,7 @@ void wheel_tick_received(const xbot_msgs::WheelTick::ConstPtr &msg) {
         return;
     gpsInterface.send_wheel_ticks(static_cast<uint32_t>(msg->stamp.toNSec() / 1000000), msg->wheel_direction_rl, msg->wheel_ticks_rl/10,
                                   msg->wheel_direction_rr, msg->wheel_ticks_rr/10);
+    last_wheel_tick_time = msg->stamp;
 }
 
 void rtcm_received(const rtcm_msgs::Message::ConstPtr &rtcm) {
@@ -83,6 +84,10 @@ void convert_gps_result(const GpsInterface::GpsState &state, xbot_msgs::Absolute
             break;
         default:
             result.flags = 0;
+    }
+
+    if(state.fix_type == GpsInterface::GpsState::FixType::DR_ONLY || state.fix_type == GpsInterface::GpsState::FixType::GNSS_DR_COMBINED) {
+        result.flags |= xbot_msgs::AbsolutePose::FLAG_GPS_DEAD_RECKONING;
     }
 
 
