@@ -1,8 +1,8 @@
 <?xml version="1.0"?>
 <package format="2">
-  <name>xbot_driver_gps_ublox</name>
+  <name>xbot_driver_gps</name>
   <version>0.0.0</version>
-  <description>The xbot_driver_gps_ublox package</description>
+  <description>The xbot_driver_gps package</description>
   <maintainer email="clemens.elflein@googlemail.com">Clemens Elflein</maintainer>
   <license>MIT</license>
 
