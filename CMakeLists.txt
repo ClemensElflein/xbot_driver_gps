@@ -12,6 +12,11 @@ find_package(catkin REQUIRED COMPONENTS
         tf2
         )
 
+# Geographiclib installs FindGeographicLib.cmake to this non-standard location
+set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "/usr/share/cmake/geographiclib/")
+find_package(GeographicLib REQUIRED)
+
+
 find_package(
         Boost
 )
@@ -22,6 +27,7 @@ catkin_package(
         #  LIBRARIES mower_comms
         #  CATKIN_DEPENDS mower_msgs roscpp serial
         #  DEPENDS system_lib
+        DEPENDS GeographicLib
 )
 
 ###########
@@ -40,4 +46,4 @@ add_executable(driver_gps_node
         src/ubx_datatypes.h)
 
 add_dependencies(driver_gps_node ${catkin_EXPORTED_TARGETS} ${${PROJECT_NAME}_EXPORTED_TARGETS})
-target_link_libraries(driver_gps_node ${catkin_LIBRARIES})
+target_link_libraries(driver_gps_node ${catkin_LIBRARIES} ${GeographicLib_LIBRARIES})
