@@ -66,6 +66,10 @@ void rtcm_received(const rtcm_msgs::Message::ConstPtr &rtcm) {
 }
 
 void convert_gps_result(const GpsInterface::GpsState &state, xbot_msgs::AbsolutePose &result) {
+    result.header.seq++;
+    result.header.frame_id = "gps";
+    result.header.stamp = ros::Time::now();
+
     result.source = xbot_msgs::AbsolutePose::SOURCE_GPS;
     result.flags = 0;
     result.sensor_stamp = state.sensor_time;
@@ -136,7 +140,6 @@ wheel_latency_received(uint32_t wheel_tick_stamp, uint32_t wheel_tick_stamp_ublo
 
 void
 imu_received(const GpsInterface::ImuState &state) {
-
     imu_msg.header.stamp = ros::Time::now();
     imu_msg.header.frame_id = "gps";
     imu_msg.header.seq++;
