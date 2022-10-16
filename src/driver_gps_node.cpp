@@ -11,17 +11,23 @@
 #include <tf2/LinearMath/Quaternion.h>
 #include <tf2_geometry_msgs/tf2_geometry_msgs.h>
 #include "std_msgs/UInt32MultiArray.h"
+#include "sensor_msgs/Imu.h"
+#include "ros/time.h"
 
 using namespace xbot::driver::gps;
 
 ros::Publisher pose_pub;
 ros::Publisher xbot_pose_pub;
 ros::Publisher latency_pub;
+ros::Publisher imu_pub;
 
 GpsInterface gpsInterface;
 
 bool allow_verbose_logging = false;
 xbot_msgs::AbsolutePose pose_result;
+
+std_msgs::UInt32MultiArray latency_msg;
+sensor_msgs::Imu imu_msg;
 
 void gps_log(std::string text, GpsInterface::Level level) {
     switch (level) {
@@ -108,20 +114,34 @@ void gps_state_received(const GpsInterface::GpsState &state) {
 }
 
 void
-gps_latency_received(uint32_t wheel_tick_stamp, uint32_t wheel_tick_stamp_ublox, uint32_t wheel_tick_round_trip_stamp) {
-    std_msgs::UInt32MultiArray msg;
-    msg.layout.dim.resize(1);
-    msg.layout.dim[0].label = "wheel_tick_stamp";
-    msg.layout.dim[0].size = 3;
-    msg.layout.dim[0].stride = 3;
-    msg.data.push_back(wheel_tick_stamp);
-    msg.data.push_back(wheel_tick_stamp_ublox);
-    msg.data.push_back(wheel_tick_round_trip_stamp);
-    latency_pub.publish(msg);
+wheel_latency_received(uint32_t wheel_tick_stamp, uint32_t wheel_tick_stamp_ublox, uint32_t wheel_tick_round_trip_stamp) {
+    latency_msg.layout.dim.resize(1);
+    latency_msg.layout.dim[0].label = "wheel_tick_stamp";
+    latency_msg.layout.dim[0].size = 3;
+    latency_msg.layout.dim[0].stride = 3;
+    latency_msg.data.push_back(wheel_tick_stamp);
+    latency_msg.data.push_back(wheel_tick_stamp_ublox);
+    latency_msg.data.push_back(wheel_tick_round_trip_stamp);
+    latency_pub.publish(latency_msg);
+}
+
+void
+imu_received(const GpsInterface::ImuState &state) {
+
+    imu_msg.header.stamp = ros::Time::now();
+    imu_msg.header.frame_id = "gps";
+    imu_msg.header.seq++;
+    imu_msg.angular_velocity.x = state.gx;
+    imu_msg.angular_velocity.y = state.gy;
+    imu_msg.angular_velocity.z = state.gz;
+    imu_msg.linear_acceleration.x = state.ax;
+    imu_msg.linear_acceleration.y = state.ay;
+    imu_msg.linear_acceleration.z = state.az;
+    imu_pub.publish(imu_msg);
 }
 
 int main(int argc, char **argv) {
-    ros::init(argc, argv, "mower_comms");
+    ros::init(argc, argv, "xbot_driver_gps");
 
     ros::NodeHandle n;
     ros::NodeHandle paramNh("~");
@@ -160,16 +180,18 @@ int main(int argc, char **argv) {
     ros::Subscriber wheel_tick_sub = paramNh.subscribe("wheel_ticks", 0, wheel_tick_received,
                                                        ros::TransportHints().tcpNoDelay(true));
 
-    pose_pub = paramNh.advertise<geometry_msgs::PoseWithCovariance>("pose", 100);
-    xbot_pose_pub = paramNh.advertise<xbot_msgs::AbsolutePose>("xb_pose", 100);
+    pose_pub = paramNh.advertise<geometry_msgs::PoseWithCovariance>("pose", 10);
+    xbot_pose_pub = paramNh.advertise<xbot_msgs::AbsolutePose>("xb_pose", 10);
+    imu_pub = paramNh.advertise<sensor_msgs::Imu>("imu", 10);
 
 
-//    gpsInterface.set_state_callback(gps_state_received);
+    gpsInterface.set_state_callback(gps_state_received);
 
     if (paramNh.param("publish_latency", true)) {
         latency_pub = paramNh.advertise<std_msgs::UInt32MultiArray>("wheel_tick_latency", 100);
-        gpsInterface.set_latency_callback(gps_latency_received);
+        gpsInterface.set_wheel_latency_callback(wheel_latency_received);
     }
+    gpsInterface.set_imu_callback(imu_received);
 
     if (!gpsInterface.start()) {
         return 1;

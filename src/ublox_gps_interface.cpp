@@ -23,7 +23,7 @@ namespace xbot {
                     return false;
                 }
 
-                if (mode_ == ABSOLUTE && (isnan(datum_n_) || isnan(datum_e_) || isnan(datum_u_))) {
+                if (mode_ == ABSOLUTE && (std::isnan(datum_n_) || std::isnan(datum_e_) || std::isnan(datum_u_))) {
                     log("absolute positioning with invalid datum, can't start", ERROR);
                     return false;
                 }
@@ -115,6 +115,7 @@ namespace xbot {
 
                 gps_state_valid_ = false;
                 found_header_ = false;
+                imu_fields_valid_ = 0;
 
                 // stores the amount of bytes to read. At first we have this small until the parse_rx_buffer is able to know
                 // how many more bytes it needs. then we read that amount of data, before parsing again.
@@ -129,6 +130,7 @@ namespace xbot {
                         bytes_to_read = 6;
                         found_header_ = false;
                         gps_state_valid_ = false;
+                        imu_fields_valid_ = 0;
                         log("opening serial port: " + port_ + " with baudrate: " + std::to_string(baudrate_), INFO);
                         try {
                             serial_.setPort(port_);
@@ -456,7 +458,8 @@ namespace xbot {
             GpsInterface::GpsInterface() {
                 datum_n_ = datum_e_ = datum_u_ = NAN;
                 state_callback = nullptr;
-                latency_callback = nullptr;
+                wheel_latency_callback = nullptr;
+                imu_callback = nullptr;
             }
 
             void GpsInterface::send_wheel_ticks(uint32_t timestamp, bool direction_left, uint32_t ticks_left,
@@ -520,13 +523,83 @@ namespace xbot {
                 }
 
                 for (int i = 0; i < n; i++) {
-                    uint32_t data = measurement_ptr[i] & 0xFFFFFF;
+                    int32_t data = measurement_ptr[i] & 0xFFFFFF;
+
+                    // sign extend the data (https://stackoverflow.com/questions/42534749/signed-extension-from-24-bit-to-32-bit-in-c)
+                    int32_t m = 1u << 23;
+                    data = (data ^ m) - m;
+
                     uint8_t data_type = measurement_ptr[i] >> 24;
-                    if (data_type == 8) {
-                        if (latency_callback) {
-                            latency_callback(time_tag, calib_ttag,
-                                             duration_cast<milliseconds>(header_stamp.time_since_epoch()).count());
-                        }
+                    switch (data_type) {
+                        case 8:
+                            // it's a wheel tick we sent earlier, track the round trip latency
+                            if (wheel_latency_callback) {
+                                wheel_latency_callback(time_tag, calib_ttag,
+                                                       duration_cast<milliseconds>(
+                                                               header_stamp.time_since_epoch()).count());
+                            }
+                            continue;
+                        case 5:
+                            // gyro z
+                            if (imu_state_.sensor_time != time_tag) {
+                                // a new frame started, clear state
+                                imu_fields_valid_ = 0;
+                                imu_state_.sensor_time = time_tag;
+                                imu_state_.received_time = duration_cast<milliseconds>(
+                                        header_stamp.time_since_epoch()).count();
+                            }
+                            imu_state_.gz = -(double) data / 4096.0 * (M_PI / 180.0);
+                            imu_fields_valid_ |= 0b1;
+                            break;
+                        case 13:
+                            // gyro y
+                            if (imu_state_.sensor_time != time_tag) {
+                                // a new frame started, clear state
+                                imu_fields_valid_ = 0;
+                                imu_state_.sensor_time = time_tag;
+                                imu_state_.received_time = duration_cast<milliseconds>(
+                                        header_stamp.time_since_epoch()).count();
+                            }
+                            imu_state_.gy = (double) data / 4096.0 * (M_PI / 180.0);
+                            imu_fields_valid_ |= 0b10;
+                            break;
+                        case 14:
+                            // gyro x
+                            if (imu_state_.sensor_time != time_tag) {
+                                // a new frame started, clear state
+                                imu_fields_valid_ = 0;
+                                imu_state_.sensor_time = time_tag;
+                                imu_state_.received_time = duration_cast<milliseconds>(
+                                        header_stamp.time_since_epoch()).count();
+                            }
+                            imu_state_.gx = (double) data / 4096.0 * (M_PI / 180.0);
+                            imu_fields_valid_ |= 0b100;
+                            break;
+                        case 16:
+                            // acc x
+                            imu_state_.ax = (double) data / 1024.0;
+                            imu_fields_valid_ |= 0b1000;
+                            break;
+                        case 17:
+                            // acc y
+                            imu_state_.ay = (double) data / 1024.0;
+                            imu_fields_valid_ |= 0b10000;
+                            break;
+                        case 18:
+                            // acc z
+                            imu_state_.az = (double) data / 1024.0;
+                            imu_fields_valid_ |= 0b100000;
+                            break;
+                        default:
+                            // some other measurement
+                            continue;
+                    }
+
+                    // check, if imu frame is done
+                    if(imu_fields_valid_ == 0b111111) {
+                        imu_callback(imu_state_);
+                        // prevent duplicate send in case other data arrives before imu
+                        imu_fields_valid_ = 0b1111111;
                     }
                 }
             }
@@ -535,8 +608,12 @@ namespace xbot {
                 state_callback = function;
             }
 
-            void GpsInterface::set_latency_callback(const GpsInterface::LatencyCallback &function) {
-                latency_callback = function;
+            void GpsInterface::set_wheel_latency_callback(const GpsInterface::LatencyCallback &function) {
+                wheel_latency_callback = function;
+            }
+
+            void GpsInterface::set_imu_callback(const GpsInterface::ImuCallback &function) {
+                imu_callback = function;
             }
 
         }

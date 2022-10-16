@@ -66,6 +66,16 @@ namespace xbot {
                     RTKType rtk_type;
                 };
 
+                struct ImuState {
+                    uint32_t sensor_time;
+                    uint32_t received_time;
+
+                    // acceleration in m/s
+                    double ax,ay,az;
+                    // rotation in rad/s
+                    double gx,gy,gz;
+                };
+
             public:
                 GpsInterface();
 
@@ -83,12 +93,14 @@ namespace xbot {
 
                 typedef std::function<void(const std::string &, Level level)> LogFunction;
                 typedef std::function<void(const GpsState &new_state)> StateCallback;
+                typedef std::function<void(const ImuState &new_state)> ImuCallback;
                 typedef std::function<void(uint32_t wheel_tick_stamp, uint32_t wheel_tick_stamp_ublox,
                                            uint32_t wheel_tick_round_trip_stamp)> LatencyCallback;
 
+                void set_imu_callback(const GpsInterface::ImuCallback &function);
                 void set_state_callback(const GpsInterface::StateCallback &function);
 
-                void set_latency_callback(const GpsInterface::LatencyCallback &function);
+                void set_wheel_latency_callback(const GpsInterface::LatencyCallback &function);
 
                 void set_serial_port(std::string port);
 
@@ -167,6 +179,9 @@ namespace xbot {
                 std::chrono::time_point<std::chrono::steady_clock> last_gps_message;
                 bool gps_state_valid_;
                 GpsState gps_state_;
+                ImuState imu_state_;
+                // track if we have filled all values
+                uint8_t imu_fields_valid_;
                 uint32_t gps_state_iTOW_;
 
                 // Set to true to stop the threads
@@ -201,7 +216,8 @@ namespace xbot {
                 std::chrono::time_point<std::chrono::steady_clock> current_gps_header_time_;
 
                 StateCallback state_callback = nullptr;
-                LatencyCallback latency_callback = nullptr;
+                LatencyCallback wheel_latency_callback = nullptr;
+                ImuCallback imu_callback = nullptr;
             };
         }
     }

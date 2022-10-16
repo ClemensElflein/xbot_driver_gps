@@ -6,8 +6,6 @@
 #ifndef XBOT_UBX_DATATYPES_H
 #define XBOT_UBX_DATATYPES_H
 
-#include "xbot_msgs/NavPVT.h"
-
 namespace xbot {
     namespace driver {
         namespace gps {

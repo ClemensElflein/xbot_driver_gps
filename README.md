@@ -19,6 +19,7 @@ This implementation differs from other popular u-blox ROS drivers in the followi
           the buffer fills or we need too much time to get the write lock, it prints an error.
         - :wrench: For wheel ticks it is able to read back the ESF-RAW messages to calculate the wheel-tick timings on
           the u-blox chip. This way we can be 100% sure that the timing was as expected.
+- **:heavy_check_mark: IMU support:** Receives ESF-MEAS messages and builds sensor_msgs/Imu messages
 - **:wrench: Scheduling Priority:** If in sensor fusion mode, the driver tries to get scheduled faster than other
   processes. If in "normal" GPS mode, it's just a normal process.
 - **:wrench: Wheel Tick Support:** The driver is able to send wheel ticks to the F9R for the internal sensor fusion to
@@ -26,7 +27,7 @@ This implementation differs from other popular u-blox ROS drivers in the followi
 - **:wrench: Use the latest configuration protocol:** since we're only supporting the newer generations of u-blox
   chips (9+), we can use the new configuration protocol instead of the deprecated one.
 - **:heavy_check_mark: Simple code base:** With less code, there are hopefully fewer errors
-- **:heavy_check_mark: Robus:** The driver recovers quickly from lost bytes or invalid data
+- **:heavy_check_mark: Robust:** The driver recovers quickly from lost bytes or invalid data
 
 ## Operation Modes:
 
@@ -58,3 +59,6 @@ TODO
 - **/pose_info (xbot_msgs/AbsolutePoseInfo):** The current pose with some additional information about the quality and
   source of the pose.
 
+
+## Improvements
+- Replace the deque - vector copy. Since we won't buffer anything anyways, we can just write into a vactor directly and reset it after each packet.
