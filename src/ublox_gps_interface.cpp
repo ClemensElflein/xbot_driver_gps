@@ -144,6 +144,11 @@ namespace xbot {
                             sleep(1);
                             continue;
                         }
+                        // clear tx buffer
+                        {
+                            std::unique_lock<std::mutex> lk(tx_mutex_);
+                            tx_buffer_.clear();
+                        }
                     }
 
                     // Serial port connected, read data

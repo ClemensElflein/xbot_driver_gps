@@ -31,6 +31,8 @@ xbot_msgs::AbsolutePose pose_result;
 std_msgs::UInt32 latency_msg1,latency_msg2,latency_msg3;
 sensor_msgs::Imu imu_msg;
 
+ros::Time last_wheel_tick_time(0.0);
+
 void gps_log(std::string text, GpsInterface::Level level) {
     switch (level) {
         case GpsInterface::Level::VERBOSE:
@@ -52,8 +54,11 @@ void gps_log(std::string text, GpsInterface::Level level) {
 }
 
 void wheel_tick_received(const xbot_msgs::WheelTick::ConstPtr &msg) {
-    gpsInterface.send_wheel_ticks(static_cast<uint32_t>(msg->stamp.toNSec() / 1000000), msg->wheel_direction_rl, msg->wheel_ticks_rl,
-                                  msg->wheel_direction_rr, msg->wheel_ticks_rr);
+    // Limit frequency
+    if(msg->stamp - last_wheel_tick_time< ros::Duration(0.09))
+        return;
+    gpsInterface.send_wheel_ticks(static_cast<uint32_t>(msg->stamp.toNSec() / 1000000), msg->wheel_direction_rl, msg->wheel_ticks_rl/10,
+                                  msg->wheel_direction_rr, msg->wheel_ticks_rr/10);
 }
 
 void rtcm_received(const rtcm_msgs::Message::ConstPtr &rtcm) {
