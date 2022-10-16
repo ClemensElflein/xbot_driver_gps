@@ -40,6 +40,9 @@ namespace xbot {
                         RTK_FIX = 2
                     };
 
+                    uint32_t sensor_time;
+                    uint32_t received_time;
+
                     // Position
                     bool position_valid;
                     // Position accuracy in m
@@ -79,6 +82,13 @@ namespace xbot {
                 };
 
                 typedef std::function<void(const std::string &, Level level)> LogFunction;
+                typedef std::function<void(const GpsState &new_state)> StateCallback;
+                typedef std::function<void(uint32_t wheel_tick_stamp, uint32_t wheel_tick_stamp_ublox,
+                                           uint32_t wheel_tick_round_trip_stamp)> LatencyCallback;
+
+                void set_state_callback(const GpsInterface::StateCallback &function);
+
+                void set_latency_callback(const GpsInterface::LatencyCallback &function);
 
                 void set_serial_port(std::string port);
 
@@ -90,12 +100,13 @@ namespace xbot {
 
                 void stop();
 
-                bool get_gps_result(GpsState *result);
-
                 void set_mode(Mode mode);
 
                 void set_datum(double datum_lat, double datum_long, double datum_height);
 
+                void
+                send_wheel_ticks(uint32_t timestamp, bool direction_left, uint32_t ticks_left, bool direction_right,
+                                 uint32_t ticks_right);
 
             private:
 
@@ -119,9 +130,9 @@ namespace xbot {
                 bool send_raw(const void *data, size_t size);
 
                 /**
-                 * Send a packet to the GPS. This will add a header and a checksum
+                 * Send a packet to the GPS. This will add a header and a checksum, but the space is assumed to already be allocated
                  */
-                bool send_packet(const void *data, size_t size);
+                bool send_packet(uint8_t *data, size_t size);
 
 
                 /**
@@ -132,20 +143,25 @@ namespace xbot {
                 /**
                  * Gets called with a valid ubx frame and switches to the handle_xxx functions
                  */
-                void process_ubx_packet(const std::chrono::time_point<std::chrono::steady_clock> &header_stamp, const uint8_t *data, const size_t &size);
+                void process_ubx_packet(const std::chrono::time_point<std::chrono::steady_clock> &header_stamp,
+                                        const uint8_t *data, const size_t &size);
 
                 /**
                  * Validate a frame, return true on valid checksum
                  */
                 bool validate_checksum(const uint8_t *packet, size_t size);
 
-                void handle_nav_pvt(const std::chrono::time_point<std::chrono::steady_clock> &header_stamp, const UbxNavPvt *msg);
+                /**
+                 * calculates the checksum for a packet
+                 */
+                void calculate_checksum(const uint8_t *packet, size_t size, uint8_t &ck_a, uint8_t &ck_b);
 
-                // Current state
-                // Mutex for gps_state_
-                std::mutex gps_state_mutex_;
-                // Condition variable for gps_state_
-                std::condition_variable gps_state_cv_;
+                void handle_nav_pvt(const std::chrono::time_point<std::chrono::steady_clock> &header_stamp,
+                                    const UbxNavPvt *msg);
+
+                void handle_esf_meas(const std::chrono::time_point<std::chrono::steady_clock> &header_stamp,
+                                     const uint8_t *payload, size_t payload_sie);
+
 
                 // Track the time of the last navigation solution
                 std::chrono::time_point<std::chrono::steady_clock> last_gps_message;
@@ -184,6 +200,8 @@ namespace xbot {
                 bool found_header_;
                 std::chrono::time_point<std::chrono::steady_clock> current_gps_header_time_;
 
+                StateCallback state_callback = nullptr;
+                LatencyCallback latency_callback = nullptr;
             };
         }
     }

@@ -47,6 +47,20 @@ namespace xbot {
                 pthread_create(&rx_thread_handle_, NULL, &GpsInterface::rx_thread_helper, this);
                 pthread_create(&tx_thread_handle_, NULL, &GpsInterface::tx_thread_helper, this);
 
+                /*
+                 TODO: test how much impact that has in real life application
+                 TODO: only enable in sensor-fusion mode
+                struct sched_param param;
+                param.sched_priority = sched_get_priority_max(SCHED_FIFO);
+                log("setting prio to: " + std::to_string(param.sched_priority), INFO);
+                bool success = true;
+                success &= pthread_setschedparam(rx_thread_handle_, SCHED_FIFO, &param) == 0;
+                success &= pthread_setschedparam(rx_thread_handle_, SCHED_FIFO, &param) == 0;
+                if (!success) {
+                    log("error setting realtime prio. Are you root?", ERROR);
+                }
+                 */
+
                 return true;
             }
 
@@ -63,7 +77,7 @@ namespace xbot {
                     std::unique_lock<std::mutex> lk(tx_mutex_);
                     // wait for new data in the tx buffer. We set a timeout so that the thread will stop even if no data arrives
                     if (std::cv_status::timeout == tx_cv_.wait_for(lk, std::chrono::milliseconds(1000))) {
-                        log("tx timeout - no data", VERBOSE);
+                        // tx timeout - no data
                         continue;
                     }
 
@@ -134,7 +148,6 @@ namespace xbot {
                     try {
                         int bytes_read = serial_.read(buf, bytes_to_read);
                         if (bytes_read) {
-                            log("read " + std::to_string(bytes_read) + " bytes", VERBOSE);
                             rx_buffer_.insert(rx_buffer_.end(), buf.begin(), buf.end());
                             buf.clear();
                             bytes_to_read = parse_rx_buffer();
@@ -162,8 +175,6 @@ namespace xbot {
                 if (millis > 10) {
                     log("waited " + std::to_string(millis) +
                         " ms to write to the tx buffer, serial port is probably congested!", ERROR);
-                } else {
-                    log("waited " + std::to_string(millis) + " ms to write to the tx buffer", VERBOSE);
                 }
 
                 // extend the buffer
@@ -180,8 +191,19 @@ namespace xbot {
                 return true;
             }
 
-            bool GpsInterface::send_packet(const void *data, size_t size) {
-                return false;
+            bool GpsInterface::send_packet(uint8_t *frame, size_t size) {
+                frame[0] = 0xb5;
+                frame[1] = 0x62;
+                auto *length_ptr = reinterpret_cast<uint16_t *>(frame + 4);
+                *length_ptr = size - 8;
+
+                uint8_t ck_a, ck_b;
+                calculate_checksum(frame + 2, size - 4, ck_a, ck_b);
+
+                frame[size - 2] = ck_a;
+                frame[size - 1] = ck_b;
+
+                return send_raw(frame, size);
             }
 
             void GpsInterface::set_log_function(const GpsInterface::LogFunction &function) {
@@ -193,8 +215,6 @@ namespace xbot {
              */
             size_t GpsInterface::parse_rx_buffer() {
                 while (rx_buffer_.size() >= 6) {
-                    log("rx buffer size: " + std::to_string(rx_buffer_.size()), VERBOSE);
-
                     // skip to the 0xb5
                     if (rx_buffer_[0] != 0x05 && rx_buffer_[1] != 0x62) {
                         rx_buffer_.pop_front();
@@ -212,12 +232,9 @@ namespace xbot {
 
                     // get the length first to check, if we already got enough bytes
                     uint16_t payload_length = rx_buffer_[5] << 8 | rx_buffer_[4];
-                    log("expecting " + std::to_string(payload_length) + " bytes of data", VERBOSE);
                     uint16_t total_length = payload_length + 8;
 
                     if (total_length > rx_buffer_.size()) {
-                        log("not enough data in the buffer yet", VERBOSE);
-
                         // fetch more data. bonus: we know exactly how many bytes
                         return total_length - rx_buffer_.size();
                     }
@@ -236,7 +253,7 @@ namespace xbot {
                         continue;
                     }
 
-                    process_ubx_packet(current_gps_header_time_, packet.data() + 2, packet.size() - 2);
+                    process_ubx_packet(current_gps_header_time_, packet.data() + 2, packet.size() - 4);
                     found_header_ = false;
                 }
 
@@ -245,13 +262,8 @@ namespace xbot {
             }
 
             bool GpsInterface::validate_checksum(const uint8_t *packet, size_t size) {
-                uint8_t ck_a = 0;
-                uint8_t ck_b = 0;
-
-                for (size_t i = 2; i < size - 2; i++) {
-                    ck_a += packet[i];
-                    ck_b += ck_a;
-                }
+                uint8_t ck_a, ck_b;
+                calculate_checksum(packet + 2, size - 4, ck_a, ck_b);
 
                 bool valid = packet[size - 2] == ck_a && packet[size - 1] == ck_b;
 
@@ -268,11 +280,13 @@ namespace xbot {
 
             void GpsInterface::process_ubx_packet(const time_point<steady_clock> &header_stamp, const uint8_t *data,
                                                   const size_t &size) {
+                // data = no header bytes (starts with class) and stops before checksum
+
                 uint16_t packet_id = data[0] << 8 | data[1];
                 switch (packet_id) {
                     case xbot::driver::gps::UbxNavPvt::CLASS_ID << 8 | xbot::driver::gps::UbxNavPvt::MESSAGE_ID: {
-                        if (size - 6 == sizeof(struct UbxNavPvt)) {
-                            log("got navpvt", VERBOSE);
+                        // substract class, id and length
+                        if (size - 4 == sizeof(struct UbxNavPvt)) {
                             const auto *msg = reinterpret_cast<const UbxNavPvt *>(data + 4);
                             handle_nav_pvt(header_stamp, msg);
                         } else {
@@ -280,24 +294,30 @@ namespace xbot {
                         }
                     }
                         break;
+/*                    case 0x10 << 8 | 0x03: {
+                        log("got esf-raw", INFO);
+                    }
+                        break;*/
+                    case 0x10 << 8 | 0x02: {
+                        handle_esf_meas(header_stamp, data + 4, size - 4);
+                    }
+                        break;
                     default:
-                        log(std::string(
-                                "got unknown ubx message. class id = " + std::to_string(data[0]) + ", message id = " +
-                                std::to_string(data[1])), VERBOSE);
+                        // unknown message, ignore it
                         break;
                 }
             }
 
             void GpsInterface::handle_nav_pvt(const time_point<steady_clock> &header_stamp, const UbxNavPvt *msg) {
                 // We have received a nav pvt message, copy to GPS state
-                std::unique_lock<std::mutex> lk(gps_state_mutex_);
-
                 // check, if message is even roughly valid. If not - ignore it.
                 bool gnssFixOK = (msg->flags & 0b0000001);
                 bool invalidLlh = (msg->flags3 & 0b1);
+
+
                 if (!gnssFixOK) {
                     gps_state_valid_ = false;
-                    log("invalid gnssFix - dropping message", WARN);
+//                    log("invalid gnssFix - dropping message", WARN);
                     return;
                 }
                 if (invalidLlh) {
@@ -315,8 +335,7 @@ namespace xbot {
                     // Check, if time was spent since the last packet. If not, the data was already in some buffer somewhere
                     if (time_diff == 0) {
                         log("gps time diff was: " + std::to_string(pvt_diff) + ", host time diff was: " +
-                            std::to_string(time_diff) +
-                            ". This means either your serial link is too slow, or there's buffering somewhere.", ERROR);
+                            std::to_string(time_diff), ERROR);
                     } else if (abs(diff) > 100.0) {
                         log("gps time diff was: " + std::to_string(pvt_diff) + ", host time diff was: " +
                             std::to_string(time_diff), ERROR);
@@ -344,7 +363,7 @@ namespace xbot {
 
                 bool diffSoln = (msg->flags & 0b0000010) >> 1;
                 auto carrSoln = (uint8_t) ((msg->flags & 0b11000000) >> 6);
-                if(diffSoln) {
+                if (diffSoln) {
                     switch (carrSoln) {
                         case 1:
                             gps_state_.rtk_type = GpsState::RTK_FLOAT;
@@ -382,18 +401,17 @@ namespace xbot {
                 gps_state_.vel_u = -msg->velD / 1000.0;
 
 
-
-                double headAcc = (msg->headAcc / 100000.0) * (M_PI/180.0);
+                double headAcc = (msg->headAcc / 100000.0) * (M_PI / 180.0);
 
                 double hedVeh = msg->headVeh / 100000.0;
-                hedVeh = -hedVeh*(M_PI/180.0);
+                hedVeh = -hedVeh * (M_PI / 180.0);
                 hedVeh = fmod(hedVeh + (M_PI_2), 2.0 * M_PI);
                 while (hedVeh < 0) {
                     hedVeh += M_PI * 2.0;
                 }
 
                 double headMotion = msg->headMot / 100000.0;
-                headMotion = -headMotion*(M_PI/180.0);
+                headMotion = -headMotion * (M_PI / 180.0);
                 headMotion = fmod(headMotion + (M_PI_2), 2.0 * M_PI);
                 while (headMotion < 0) {
                     headMotion += M_PI * 2.0;
@@ -405,28 +423,25 @@ namespace xbot {
                 gps_state_.motion_heading_accuracy = headAcc;
 
                 // headAcc is the same for both
-                gps_state_.vehicle_heading_valid =(msg->flags & 0b100000) >> 5;
+                gps_state_.vehicle_heading_valid = (msg->flags & 0b100000) >> 5;
                 gps_state_.vehicle_heading_accuracy = headAcc;
                 gps_state_.vehicle_heading = hedVeh;
+
+                gps_state_.sensor_time = msg->iTOW;
+                gps_state_.received_time = duration_cast<milliseconds>(header_stamp.time_since_epoch()).count();
 
                 // Latency tracking
                 last_gps_message = header_stamp;
                 gps_state_valid_ = true;
                 gps_state_iTOW_ = msg->iTOW;
 
-                gps_state_cv_.notify_all();
-            }
-
-            bool GpsInterface::get_gps_result(GpsInterface::GpsState *const result) {
-                std::unique_lock<std::mutex> lk(gps_state_mutex_);
-                // wait for new data in the gps state. We set a timeout so that this will return even if no data arrives.
-                if (std::cv_status::timeout == gps_state_cv_.wait_for(lk, std::chrono::milliseconds(1000))) {
-                    log("gps update timeout - no new data", VERBOSE);
-                    return false;
+                time_point<std::chrono::steady_clock> start = steady_clock::now();
+                if (state_callback)
+                    state_callback(gps_state_);
+                auto millis = duration_cast<milliseconds>(steady_clock::now() - start).count();
+                if (millis > 10) {
+                    log("slow ros publisher: " + std::to_string(millis) + " ms", ERROR);
                 }
-                // copy the result
-                *result = gps_state_;
-                return true;
             }
 
             void GpsInterface::set_datum(double datum_lat, double datum_long, double datum_height) {
@@ -440,7 +455,90 @@ namespace xbot {
 
             GpsInterface::GpsInterface() {
                 datum_n_ = datum_e_ = datum_u_ = NAN;
+                state_callback = nullptr;
+                latency_callback = nullptr;
             }
+
+            void GpsInterface::send_wheel_ticks(uint32_t timestamp, bool direction_left, uint32_t ticks_left,
+                                                bool direction_right, uint32_t ticks_right) {
+                uint8_t frame[8 + 2 * 4 + 8] = {0};
+                // Set the message class and ID
+                frame[2] = 0x10;
+                frame[3] = 0x02;
+
+                auto *payload = reinterpret_cast<uint32_t *>(frame + 6);
+                payload[0] = timestamp;
+                // flags etc, it's all 0
+                payload[1] = 0;
+
+                uint32_t data_left = ticks_left & 0x7FFFFF;
+                if (direction_left) {
+                    data_left |= 1 << 23;
+                }
+                data_left |= 8 << 24;
+                payload[2] = data_left;
+
+                uint32_t data_right = ticks_right & 0x7FFFFF;
+                if (direction_right) {
+                    data_right |= 1 << 23;
+                }
+                data_right |= 9 << 24;
+                payload[3] = data_right;
+
+                send_packet(frame, sizeof(frame));
+            }
+
+            void GpsInterface::calculate_checksum(const uint8_t *packet, size_t size, uint8_t &ck_a, uint8_t &ck_b) {
+                ck_a = 0;
+                ck_b = 0;
+
+                for (size_t i = 0; i < size; i++) {
+                    ck_a += packet[i];
+                    ck_b += ck_a;
+                }
+            }
+
+            void GpsInterface::handle_esf_meas(const std::chrono::time_point<std::chrono::steady_clock> &header_stamp,
+                                               const uint8_t *payload, size_t payload_sie) {
+                uint32_t time_tag = *reinterpret_cast<const uint32_t *>(payload);
+                uint16_t flags = *reinterpret_cast<const uint16_t *>(payload + 4);
+                uint16_t id = *reinterpret_cast<const uint16_t *>(payload + 6);
+                bool has_calib_ttag = flags & 0b1000;
+
+                uint32_t calib_ttag = 0;
+
+                size_t measurement_size = payload_sie - 8;
+                if (has_calib_ttag)
+                    measurement_size -= 4;
+                int n = measurement_size / 4;
+
+                // get the measurements
+                auto *measurement_ptr = reinterpret_cast<const uint32_t *>(payload + 8);
+
+                if (has_calib_ttag) {
+                    calib_ttag = measurement_ptr[n];
+                }
+
+                for (int i = 0; i < n; i++) {
+                    uint32_t data = measurement_ptr[i] & 0xFFFFFF;
+                    uint8_t data_type = measurement_ptr[i] >> 24;
+                    if (data_type == 8) {
+                        if (latency_callback) {
+                            latency_callback(time_tag, calib_ttag,
+                                             duration_cast<milliseconds>(header_stamp.time_since_epoch()).count());
+                        }
+                    }
+                }
+            }
+
+            void GpsInterface::set_state_callback(const GpsInterface::StateCallback &function) {
+                state_callback = function;
+            }
+
+            void GpsInterface::set_latency_callback(const GpsInterface::LatencyCallback &function) {
+                latency_callback = function;
+            }
+
         }
     }
 }

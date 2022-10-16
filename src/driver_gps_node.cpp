@@ -10,13 +10,18 @@
 #include "xbot_msgs/AbsolutePose.h"
 #include <tf2/LinearMath/Quaternion.h>
 #include <tf2_geometry_msgs/tf2_geometry_msgs.h>
+#include "std_msgs/UInt32MultiArray.h"
 
 using namespace xbot::driver::gps;
+
+ros::Publisher pose_pub;
+ros::Publisher xbot_pose_pub;
+ros::Publisher latency_pub;
 
 GpsInterface gpsInterface;
 
 bool allow_verbose_logging = false;
-
+xbot_msgs::AbsolutePose pose_result;
 
 void gps_log(std::string text, GpsInterface::Level level) {
     switch (level) {
@@ -39,12 +44,15 @@ void gps_log(std::string text, GpsInterface::Level level) {
 }
 
 void wheel_tick_received(const xbot_msgs::WheelTick::ConstPtr &msg) {
-//    gpsInterface.send_raw(nullptr, 0);
+    gpsInterface.send_wheel_ticks(msg->stamp.nsec / 1000000, msg->wheel_direction_rl, msg->wheel_ticks_rl,
+                                  msg->wheel_direction_rr, msg->wheel_ticks_rr);
 }
 
 void convert_gps_result(const GpsInterface::GpsState &state, xbot_msgs::AbsolutePose &result) {
     result.source = xbot_msgs::AbsolutePose::SOURCE_GPS;
     result.flags = 0;
+    result.sensor_stamp = state.sensor_time;
+    result.received_stamp = state.received_time;
     switch (state.rtk_type) {
         case GpsInterface::GpsState::RTK_FLOAT:
             result.flags = xbot_msgs::AbsolutePose::FLAG_GPS_RTK | xbot_msgs::AbsolutePose::FLAG_GPS_RTK_FLOAT;
@@ -92,6 +100,26 @@ void convert_gps_result(const GpsInterface::GpsState &state, xbot_msgs::Absolute
 
 }
 
+void gps_state_received(const GpsInterface::GpsState &state) {
+    // new state received, publish
+    convert_gps_result(state, pose_result);
+    xbot_pose_pub.publish(pose_result);
+    pose_pub.publish(pose_result.pose);
+}
+
+void
+gps_latency_received(uint32_t wheel_tick_stamp, uint32_t wheel_tick_stamp_ublox, uint32_t wheel_tick_round_trip_stamp) {
+    std_msgs::UInt32MultiArray msg;
+    msg.layout.dim.resize(1);
+    msg.layout.dim[0].label = "wheel_tick_stamp";
+    msg.layout.dim[0].size = 3;
+    msg.layout.dim[0].stride = 3;
+    msg.data.push_back(wheel_tick_stamp);
+    msg.data.push_back(wheel_tick_stamp_ublox);
+    msg.data.push_back(wheel_tick_round_trip_stamp);
+    latency_pub.publish(msg);
+}
+
 int main(int argc, char **argv) {
     ros::init(argc, argv, "mower_comms");
 
@@ -127,28 +155,29 @@ int main(int argc, char **argv) {
         gpsInterface.set_mode(xbot::driver::gps::GpsInterface::RELATIVE);
     }
 
-    if (!gpsInterface.start()) {
-        return 1;
-    }
 
     // Subscribe to wheel ticks
     ros::Subscriber wheel_tick_sub = paramNh.subscribe("wheel_ticks", 0, wheel_tick_received,
                                                        ros::TransportHints().tcpNoDelay(true));
 
-    ros::Publisher pose_pub = paramNh.advertise<geometry_msgs::PoseWithCovariance>("pose", 1);
-    ros::Publisher xbot_pose_pub = paramNh.advertise<xbot_msgs::AbsolutePose>("xb_pose", 1);
+    pose_pub = paramNh.advertise<geometry_msgs::PoseWithCovariance>("pose", 100);
+    xbot_pose_pub = paramNh.advertise<xbot_msgs::AbsolutePose>("xb_pose", 100);
 
-    GpsInterface::GpsState state = {0};
-    xbot_msgs::AbsolutePose pose_result;
+
+//    gpsInterface.set_state_callback(gps_state_received);
+
+    if (paramNh.param("publish_latency", true)) {
+        latency_pub = paramNh.advertise<std_msgs::UInt32MultiArray>("wheel_tick_latency", 100);
+        gpsInterface.set_latency_callback(gps_latency_received);
+    }
+
+    if (!gpsInterface.start()) {
+        return 1;
+    }
+
 
     while (ros::ok()) {
-        ros::spinOnce();
-        if (gpsInterface.get_gps_result(&state)) {
-            // new state received, publish
-            convert_gps_result(state, pose_result);
-            xbot_pose_pub.publish(pose_result);
-            pose_pub.publish(pose_result.pose);
-        }
+        ros::spin();
     }
 
     gpsInterface.stop();
