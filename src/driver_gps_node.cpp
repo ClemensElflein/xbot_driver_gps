@@ -13,8 +13,15 @@
 #include "std_msgs/UInt32.h"
 #include "sensor_msgs/Imu.h"
 #include "rtcm_msgs/Message.h"
+#include <nmeaparse/nmea.h>
+#include "GeographicLib/DMS.hpp"
+#include <boost/algorithm/string.hpp>
+#include "nmea_msgs/Sentence.h"
+#include <boost/date_time/posix_time/posix_time.hpp>
+#include <boost/date_time/posix_time/posix_time_io.hpp>
 
 using namespace xbot::driver::gps;
+using namespace nmea;
 
 ros::Publisher pose_pub;
 ros::Publisher xbot_pose_pub;
@@ -22,16 +29,60 @@ ros::Publisher latency_pub1;
 ros::Publisher latency_pub2;
 ros::Publisher latency_pub3;
 ros::Publisher imu_pub;
+ros::Publisher vrs_nmea_pub;
 
 GpsInterface gpsInterface;
 
 bool allow_verbose_logging = false;
 xbot_msgs::AbsolutePose pose_result;
 
-std_msgs::UInt32 latency_msg1,latency_msg2,latency_msg3;
+std_msgs::UInt32 latency_msg1, latency_msg2, latency_msg3;
 sensor_msgs::Imu imu_msg;
 
 ros::Time last_wheel_tick_time(0.0);
+ros::Time last_vrs_feedback(0.0);
+nmea_msgs::Sentence vrs_msg;
+auto time_facet = new boost::posix_time::time_facet("%H%M%s");
+
+void generate_nmea(double lat_in, double lon_in) {
+    // only send every second, this will be way more than needed
+    if ((ros::Time::now() - last_vrs_feedback).toSec() < 1.0) {
+        return;
+    }
+    last_vrs_feedback = ros::Time::now();
+    NMEACommand cmd1;
+
+    auto lat = GeographicLib::DMS::Encode(lat_in, GeographicLib::DMS::component::MINUTE, 4,
+                                          GeographicLib::DMS::flag::LATITUDE, ';');
+    auto lon = GeographicLib::DMS::Encode(lon_in, GeographicLib::DMS::component::MINUTE, 4,
+                                          GeographicLib::DMS::flag::LONGITUDE, ';');
+
+    // remove separator char
+    boost::erase_all(lat, ";");
+    boost::erase_all(lon, ";");
+
+    auto lat_hemisphere = lat.substr(lat.length() - 1, 1);
+    auto lon_hemisphere = lon.substr(lon.length() - 1, 1);
+
+
+    std::stringstream message_ss;
+    message_ss.imbue(std::locale(message_ss.getloc(), time_facet));
+    message_ss << ros::Time::now().toBoost() << "," <<
+               lat.substr(0, lat.length() - 1) << "," <<
+               lat_hemisphere << "," <<
+               lon.substr(0, lon.length() - 1) << "," <<
+               lon_hemisphere << ",1,0,0,0,M,0,M,0,0000,";
+
+    //build message
+    cmd1.name = "GPGGA";
+    cmd1.message = message_ss.str();
+
+    vrs_msg.header.frame_id = "gps";
+    vrs_msg.header.seq++;
+    vrs_msg.header.stamp = ros::Time::now();
+    vrs_msg.sentence = cmd1.toString();
+    vrs_nmea_pub.publish(vrs_msg);
+}
 
 void gps_log(std::string text, GpsInterface::Level level) {
     switch (level) {
@@ -55,10 +106,11 @@ void gps_log(std::string text, GpsInterface::Level level) {
 
 void wheel_tick_received(const xbot_msgs::WheelTick::ConstPtr &msg) {
     // Limit frequency
-    if(msg->stamp - last_wheel_tick_time< ros::Duration(0.09))
+    if (msg->stamp - last_wheel_tick_time < ros::Duration(0.09))
         return;
-    gpsInterface.send_wheel_ticks(static_cast<uint32_t>(msg->stamp.toNSec() / 1000000), msg->wheel_direction_rl, msg->wheel_ticks_rl/10,
-                                  msg->wheel_direction_rr, msg->wheel_ticks_rr/10);
+    gpsInterface.send_wheel_ticks(static_cast<uint32_t>(msg->stamp.toNSec() / 1000000), msg->wheel_direction_rl,
+                                  msg->wheel_ticks_rl / 10,
+                                  msg->wheel_direction_rr, msg->wheel_ticks_rr / 10);
     last_wheel_tick_time = msg->stamp;
 }
 
@@ -86,7 +138,8 @@ void convert_gps_result(const GpsInterface::GpsState &state, xbot_msgs::Absolute
             result.flags = 0;
     }
 
-    if(state.fix_type == GpsInterface::GpsState::FixType::DR_ONLY || state.fix_type == GpsInterface::GpsState::FixType::GNSS_DR_COMBINED) {
+    if (state.fix_type == GpsInterface::GpsState::FixType::DR_ONLY ||
+        state.fix_type == GpsInterface::GpsState::FixType::GNSS_DR_COMBINED) {
         result.flags |= xbot_msgs::AbsolutePose::FLAG_GPS_DEAD_RECKONING;
     }
 
@@ -131,10 +184,14 @@ void gps_state_received(const GpsInterface::GpsState &state) {
     convert_gps_result(state, pose_result);
     xbot_pose_pub.publish(pose_result);
     pose_pub.publish(pose_result.pose);
+
+    // send feedback to VRS
+    generate_nmea(state.pos_lat, state.pos_lon);
 }
 
 void
-wheel_latency_received(uint32_t wheel_tick_stamp, uint32_t wheel_tick_stamp_ublox, uint32_t wheel_tick_round_trip_stamp) {
+wheel_latency_received(uint32_t wheel_tick_stamp, uint32_t wheel_tick_stamp_ublox,
+                       uint32_t wheel_tick_round_trip_stamp) {
     latency_msg1.data = wheel_tick_stamp;
     latency_msg2.data = wheel_tick_stamp_ublox;
     latency_msg3.data = wheel_tick_round_trip_stamp;
@@ -158,6 +215,8 @@ imu_received(const GpsInterface::ImuState &state) {
 }
 
 int main(int argc, char **argv) {
+
+
     ros::init(argc, argv, "xbot_driver_gps");
 
     ros::NodeHandle n;
@@ -197,9 +256,10 @@ int main(int argc, char **argv) {
     ros::Subscriber wheel_tick_sub = paramNh.subscribe("wheel_ticks", 0, wheel_tick_received,
                                                        ros::TransportHints().tcpNoDelay(true));
     ros::Subscriber rtcm_sub = n.subscribe("rtcm", 0, rtcm_received,
-                                                       ros::TransportHints().tcpNoDelay(true));
+                                           ros::TransportHints().tcpNoDelay(true));
 
 
+    vrs_nmea_pub = n.advertise<nmea_msgs::Sentence>("/nmea", 10);
     pose_pub = paramNh.advertise<geometry_msgs::PoseWithCovariance>("pose", 10);
     xbot_pose_pub = paramNh.advertise<xbot_msgs::AbsolutePose>("xb_pose", 10);
     imu_pub = paramNh.advertise<sensor_msgs::Imu>("imu", 10);

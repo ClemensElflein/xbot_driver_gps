@@ -395,7 +395,8 @@ namespace xbot {
                 double e, n;
                 std::string zone;
                 RobotLocalization::NavsatConversions::LLtoUTM(lat, lon, n, e, zone);
-
+                gps_state_.pos_lat = lat;
+                gps_state_.pos_lon = lon;
                 gps_state_.position_valid = true;
                 gps_state_.pos_e = e - datum_e_;
                 gps_state_.pos_n = n - datum_n_;

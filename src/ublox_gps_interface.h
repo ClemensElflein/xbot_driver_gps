@@ -49,6 +49,9 @@ namespace xbot {
                     double position_accuracy;
                     double pos_e, pos_n, pos_u;
 
+                    // Pos in lat/lon for VRS
+                    double pos_lat, pos_lon;
+
                     // Motion
                     bool motion_heading_valid;
                     double vel_e, vel_n, vel_u;
