@@ -376,7 +376,7 @@ namespace xbot {
                             gps_state_.rtk_type = GpsState::RTK_FLOAT;
                             break;
                         case 2:
-                            gps_state_.rtk_type = GpsState::RTK_FLOAT;
+                            gps_state_.rtk_type = GpsState::RTK_FIX;
                             break;
                         default:
                             gps_state_.rtk_type = GpsState::RTK_NONE;
