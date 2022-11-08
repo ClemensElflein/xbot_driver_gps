@@ -42,7 +42,6 @@ sensor_msgs::Imu imu_msg;
 ros::Time last_wheel_tick_time(0.0);
 ros::Time last_vrs_feedback(0.0);
 nmea_msgs::Sentence vrs_msg;
-auto time_facet = new boost::posix_time::time_facet("%H%M%s");
 
 void generate_nmea(double lat_in, double lon_in) {
     // only send every second, this will be way more than needed
@@ -66,6 +65,8 @@ void generate_nmea(double lat_in, double lon_in) {
 
 
     std::stringstream message_ss;
+    auto time_facet = new boost::posix_time::time_facet("%H%M%s");
+
     message_ss.imbue(std::locale(message_ss.getloc(), time_facet));
     message_ss << ros::Time::now().toBoost() << "," <<
                lat.substr(0, lat.length() - 1) << "," <<
@@ -81,6 +82,7 @@ void generate_nmea(double lat_in, double lon_in) {
     vrs_msg.header.seq++;
     vrs_msg.header.stamp = ros::Time::now();
     vrs_msg.sentence = cmd1.toString();
+    boost::erase_all(vrs_msg.sentence, "\r\n");
     vrs_nmea_pub.publish(vrs_msg);
 }
 
