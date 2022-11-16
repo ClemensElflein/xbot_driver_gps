@@ -190,7 +190,7 @@ namespace xbot {
                 tx_buffer_.insert(tx_buffer_.end(), (uint8_t *) data, (uint8_t *) data + size);
 
 
-                if (tx_buffer_.size() > 1000) {
+                if (tx_buffer_.size() > 5000) {
                     log("high tx buffer size: " + std::to_string(tx_buffer_.size()), ERROR);
                 }
 
