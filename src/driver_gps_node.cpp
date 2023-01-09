@@ -20,6 +20,9 @@
 #include <boost/date_time/posix_time/posix_time.hpp>
 #include <boost/date_time/posix_time/posix_time_io.hpp>
 
+#include "xbot_msgs/SensorInfo.h"
+#include "xbot_msgs/SensorDataDouble.h"
+
 using namespace xbot::driver::gps;
 using namespace nmea;
 
