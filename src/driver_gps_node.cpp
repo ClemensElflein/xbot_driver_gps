@@ -5,6 +5,7 @@
 
 #include "ros/ros.h"
 #include "ublox_gps_interface.h"
+#include "nmea_gps_interface.h"
 #include "xbot_msgs/WheelTick.h"
 #include "geometry_msgs/PoseWithCovariance.h"
 #include "xbot_msgs/AbsolutePose.h"
@@ -31,7 +32,8 @@ ros::Publisher latency_pub3;
 ros::Publisher imu_pub;
 ros::Publisher vrs_nmea_pub;
 
-GpsInterface gpsInterface;
+bool isUbxInterface = false;
+GpsInterface *gpsInterface;
 
 bool allow_verbose_logging = false;
 xbot_msgs::AbsolutePose pose_result;
@@ -110,14 +112,17 @@ void wheel_tick_received(const xbot_msgs::WheelTick::ConstPtr &msg) {
     // Limit frequency
     if (msg->stamp - last_wheel_tick_time < ros::Duration(0.09))
         return;
-    gpsInterface.send_wheel_ticks(static_cast<uint32_t>(msg->stamp.toNSec() / 1000000), msg->wheel_direction_rl,
+    // drop if not ubx
+    if(!isUbxInterface)
+        return;
+    ((UbxGpsInterface*)gpsInterface)->send_wheel_ticks(static_cast<uint32_t>(msg->stamp.toNSec() / 1000000), msg->wheel_direction_rl,
                                   msg->wheel_ticks_rl / 10,
                                   msg->wheel_direction_rr, msg->wheel_ticks_rr / 10);
     last_wheel_tick_time = msg->stamp;
 }
 
 void rtcm_received(const rtcm_msgs::Message::ConstPtr &rtcm) {
-    gpsInterface.send_rtcm(rtcm->message.data(), rtcm->message.size());
+    gpsInterface->send_rtcm(rtcm->message.data(), rtcm->message.size());
 }
 
 void convert_gps_result(const GpsInterface::GpsState &state, xbot_msgs::AbsolutePose &result) {
@@ -224,19 +229,34 @@ int main(int argc, char **argv) {
     ros::NodeHandle n;
     ros::NodeHandle paramNh("~");
 
+    isUbxInterface = paramNh.param("ubx_mode", true);
+    if(isUbxInterface) {
+        ROS_INFO_STREAM("Using UBX mode for GPS");
+        gpsInterface = new UbxGpsInterface();
+    } else {
+        ROS_INFO_STREAM("Using NMEA mode for GPS");
+        gpsInterface = new NmeaGpsInterface();
+    }
+
+    gpsInterface->set_log_function(gps_log);
+
     allow_verbose_logging = paramNh.param("verbose", false);
     if (allow_verbose_logging) {
         ROS_WARN("GPS node has verbose logging enabled");
     }
 
-    gpsInterface.set_log_function(gps_log);
-    gpsInterface.set_baudrate(paramNh.param("baudrate", 38400));
-    gpsInterface.set_serial_port(paramNh.param("serial_port", std::string("/dev/ttyACM0")));
+    if(paramNh.param("read_from_file", false)) {
+        ROS_INFO_STREAM("Reading GPS data from file!");
+        gpsInterface->set_file_name(paramNh.param("filename", std::string("/dev/null")));
+    } else {
+        gpsInterface->set_baudrate(paramNh.param("baudrate", 38400));
+        gpsInterface->set_serial_port(paramNh.param("serial_port", std::string("/dev/ttyACM0")));
+    }
 
     std::string mode = paramNh.param("mode", std::string("absolute"));
     if (mode == "absolute") {
         ROS_INFO_STREAM("Using absolute mode for GPS");
-        gpsInterface.set_mode(xbot::driver::gps::GpsInterface::ABSOLUTE);
+        gpsInterface->set_mode(xbot::driver::gps::GpsInterface::ABSOLUTE);
         double datum_lat, datum_long, datum_height;
         bool has_datum = true;
         has_datum &= paramNh.getParam("datum_lat", datum_lat);
@@ -247,10 +267,10 @@ int main(int argc, char **argv) {
                     "You need to provide datum_lat and datum_long and datum_height in order to use the absolute mode");
             return 2;
         }
-        gpsInterface.set_datum(datum_lat, datum_long, datum_height);
+        gpsInterface->set_datum(datum_lat, datum_long, datum_height);
     } else if (mode == "relative") {
         ROS_INFO_STREAM("Using relative mode for GPS");
-        gpsInterface.set_mode(xbot::driver::gps::GpsInterface::RELATIVE);
+        gpsInterface->set_mode(xbot::driver::gps::GpsInterface::RELATIVE);
     }
 
 
@@ -267,17 +287,17 @@ int main(int argc, char **argv) {
     imu_pub = paramNh.advertise<sensor_msgs::Imu>("imu", 10);
 
 
-    gpsInterface.set_state_callback(gps_state_received);
+    gpsInterface->set_state_callback(gps_state_received);
 
-    if (paramNh.param("publish_latency", true)) {
+    if (paramNh.param("publish_latency", true) && isUbxInterface) {
         latency_pub1 = paramNh.advertise<std_msgs::UInt32>("wheel_tick_stamp_esc", 100);
         latency_pub2 = paramNh.advertise<std_msgs::UInt32>("wheel_tick_ublox_rx", 100);
         latency_pub3 = paramNh.advertise<std_msgs::UInt32>("wheel_tick_round_trip_host", 100);
-        gpsInterface.set_wheel_latency_callback(wheel_latency_received);
+        dynamic_cast<UbxGpsInterface*>(gpsInterface)->set_wheel_latency_callback(wheel_latency_received);
     }
-    gpsInterface.set_imu_callback(imu_received);
+    gpsInterface->set_imu_callback(imu_received);
 
-    if (!gpsInterface.start()) {
+    if (!gpsInterface->start()) {
         return 1;
     }
 
@@ -286,6 +306,7 @@ int main(int argc, char **argv) {
         ros::spin();
     }
 
-    gpsInterface.stop();
+    gpsInterface->stop();
+    delete gpsInterface;
     return 0;
 }

@@ -67,7 +67,7 @@ add_executable(driver_gps_node
         src/driver_gps_node.cpp
         src/ublox_gps_interface.h
         src/ublox_gps_interface.cpp
-        src/ubx_datatypes.h)
+        src/ubx_datatypes.h src/gps_interface.h src/gps_interface.cpp src/nmea_gps_interface.cpp src/nmea_gps_interface.h)
 
 
 add_dependencies(driver_gps_node ${catkin_EXPORTED_TARGETS} ${${PROJECT_NAME}_EXPORTED_TARGETS})
