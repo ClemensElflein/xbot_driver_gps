@@ -80,13 +80,14 @@ xbot::driver::gps::NmeaGpsInterface::NmeaGpsInterface() : GpsInterface(), gps(pa
         gps_state_.position_accuracy = (double) sqrt(
                 pow(fix.horizontalAccuracy(), 2) + pow(fix.verticalAccuracy(), 2));
 
-        //TODO!
-        gps_state_.vel_e = 0;
-        gps_state_.vel_n = 0;
+        // speed in m/s
+        double speed = fix.speed / 3.6;
+        double angle_rad = fix.travelAngle * M_PI / 180.0;
+        gps_state_.vel_e = -sin(angle_rad) * speed;
+        gps_state_.vel_n = cos(angle_rad) * speed;
         gps_state_.vel_u = 0;
-        // /TODO
 
-        gps_state_.motion_heading_valid = false;
+        gps_state_.motion_heading_valid = true;
         gps_state_.vehicle_heading_valid = false;
 
         gps_state_.sensor_time = fix.timestamp.getTime();
