@@ -46,8 +46,8 @@ ros::Time last_vrs_feedback(0.0);
 nmea_msgs::Sentence vrs_msg;
 
 void generate_nmea(double lat_in, double lon_in) {
-    // only send every second, this will be way more than needed
-    if ((ros::Time::now() - last_vrs_feedback).toSec() < 1.0) {
+    // only send every 10 seconds, this will be more than needed
+    if ((ros::Time::now() - last_vrs_feedback).toSec() < 10.0) {
         return;
     }
     last_vrs_feedback = ros::Time::now();
