@@ -8,18 +8,15 @@
 
 #include <pthread.h>
 #include <mutex>
-#include <serial/serial.h>
+#include <serial_driver/serial_driver.hpp>
 #include <functional>
 #include <condition_variable>
 #include <unistd.h>
 #include <deque>
 #include "ubx_datatypes.h"
-#include "robot_localization/navsat_conversions.h"
+#include "robot_localization/robot_localization/navsat_conversions.hpp"
 #include "gps_interface.h"
 
-namespace xbot {
-    namespace driver {
-        namespace gps {
             class UbxGpsInterface : public GpsInterface {
 
             public:

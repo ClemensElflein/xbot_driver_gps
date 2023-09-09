@@ -1,34 +1,28 @@
 <?xml version="1.0"?>
 <package format="2">
-  <name>xbot_driver_gps</name>
+  <name>ublox_f9p</name>
   <version>0.0.0</version>
-  <description>The xbot_driver_gps package</description>
-  <maintainer email="clemens.elflein@googlemail.com">Clemens Elflein</maintainer>
+  <description>ROS2 driver for u-blox F9P</description>
+  <maintainer email="jakub@kaflik.pl">Jakub Kaflik</maintainer>
   <license>MIT</license>
 
-  <url type="website">https://github.com/ClemensElflein</url>
+  <url type="website">https://github.com/jkaflik/ublox_f9p</url>
 
-  <buildtool_depend>catkin</buildtool_depend>
-  <build_depend>xbot_msgs</build_depend>
-  <build_depend>roscpp</build_depend>
-  <build_depend>serial</build_depend>
-  <build_depend>robot_localization</build_depend>
-  <build_depend>tf2</build_depend>
-  <build_depend>tf2_geometry_msgs</build_depend>
-  <build_depend>sensor_msgs</build_depend>
-  <build_export_depend>sensor_msgs</build_export_depend>
-  <build_export_depend>xbot_msgs</build_export_depend>
-  <build_export_depend>roscpp</build_export_depend>
-  <build_export_depend>serial</build_export_depend>
-  <exec_depend>sensor_msgs</exec_depend>
-  <exec_depend>xbot_msgs</exec_depend>
-  <exec_depend>roscpp</exec_depend>
-  <exec_depend>serial</exec_depend>
-  <depend>nmea_msgs</depend>
+  <buildtool_depend>ament_cmake_ros</buildtool_depend>
 
-  <!-- The export tag contains other, unspecified, tags -->
+  <depend>diagnostic_msgs</depend>
+  <depend>diagnostic_updater</depend>
+  <depend>rclcpp</depend>
+  <depend>rclcpp_components</depend>
+  <depend>robot_localization</depend>
+  <depend>rtcm_msgs</depend>
+  <depend>sensor_msgs</depend>
+  <depend>geometry_msgs</depend>
+  <depend>serial_driver</depend>
+  <depend>tf2</depend>
+  <depend>tf2_geometry_msgs</depend>
+
   <export>
-    <!-- Other tools can request additional information be placed here -->
-
+    <build_type>ament_cmake</build_type>
   </export>
 </package>

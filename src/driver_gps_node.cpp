@@ -3,21 +3,17 @@
 // Copyright (c) 2022 Clemens Elflein. All rights reserved.
 //
 
-#include "ros/ros.h"
+#include "rclcpp/rclcpp.hpp"
+#include "std_msgs/msg/u_int32.hpp"
+#include "geometry_msgs/msg/pose_with_covariance.hpp"
+#include "sensor_msgs/msg/imu.hpp"
 #include "ublox_gps_interface.h"
-#include "nmea_gps_interface.h"
-#include "xbot_msgs/WheelTick.h"
-#include "geometry_msgs/PoseWithCovariance.h"
-#include "xbot_msgs/AbsolutePose.h"
+#include "geometry_msgs/geometry_msgs/msg/pose.hpp"
 #include <tf2/LinearMath/Quaternion.h>
 #include <tf2_geometry_msgs/tf2_geometry_msgs.h>
-#include "std_msgs/UInt32.h"
-#include "sensor_msgs/Imu.h"
-#include "rtcm_msgs/Message.h"
-#include <nmeaparse/nmea.h>
+#include "rtcm_msgs/msg/Message.h"
 #include "GeographicLib/DMS.hpp"
 #include <boost/algorithm/string.hpp>
-#include "nmea_msgs/Sentence.h"
 #include <boost/date_time/posix_time/posix_time.hpp>
 #include <boost/date_time/posix_time/posix_time_io.hpp>
 
@@ -222,27 +218,17 @@ imu_received(const GpsInterface::ImuState &state) {
 }
 
 int main(int argc, char **argv) {
+    rclcpp::init(argc, argv);
+    auto node = rclcpp::Node::make_shared("ublox_f9p");
+    auto paramNode = rclcpp::Node::make_shared("ublox_f9p_param_node");
 
-
-    ros::init(argc, argv, "xbot_driver_gps");
-
-    ros::NodeHandle n;
-    ros::NodeHandle paramNh("~");
-
-    isUbxInterface = paramNh.param("ubx_mode", true);
-    if(isUbxInterface) {
-        ROS_INFO_STREAM("Using UBX mode for GPS");
-        gpsInterface = new UbxGpsInterface();
-    } else {
-        ROS_INFO_STREAM("Using NMEA mode for GPS");
-        gpsInterface = new NmeaGpsInterface();
-    }
-
+    RCLCPP_INFO(node->get_logger(), "Using UBX mode for GPS");
+    gpsInterface = new UbxGpsInterface();
     gpsInterface->set_log_function(gps_log);
 
-    allow_verbose_logging = paramNh.param("verbose", false);
+    bool allow_verbose_logging = paramNode->declare_parameter("verbose", false).get<bool>();
     if (allow_verbose_logging) {
-        ROS_WARN("GPS node has verbose logging enabled");
+        RCLCPP_WARN(node->get_logger(), "GPS node has verbose logging enabled");
     }
 
     if(paramNh.param("read_from_file", false)) {
@@ -302,11 +288,11 @@ int main(int argc, char **argv) {
     }
 
 
-    while (ros::ok()) {
-        ros::spin();
-    }
+    rclcpp::spin(node);
 
     gpsInterface->stop();
     delete gpsInterface;
+
+    rclcpp::shutdown();
     return 0;
 }

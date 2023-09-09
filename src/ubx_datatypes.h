@@ -1,15 +1,9 @@
+#pragma once
+
 //
 // Created by Clemens Elflein on 15.10.22.
 // Copyright (c) 2022 Clemens Elflein. All rights reserved.
 //
-
-#ifndef XBOT_UBX_DATATYPES_H
-#define XBOT_UBX_DATATYPES_H
-
-namespace xbot {
-    namespace driver {
-        namespace gps {
-
 
 #pragma pack(push, 1)
             struct UbxNavPvt {
@@ -81,7 +75,3 @@ namespace xbot {
                 uint16_t magAcc;
             } __attribute__((packed));
 #pragma pack(pop)
-        }
-    }
-}
-#endif //XBOT_UBX_DATATYPES_H

@@ -1,76 +1,52 @@
-cmake_minimum_required(VERSION 3.0.2)
-include(ExternalProject)
-project(xbot_driver_gps)
+cmake_minimum_required(VERSION 3.5)
+project(ublox_f9p)
 
+# Default to C++14
+if(NOT CMAKE_CXX_STANDARD)
+    set(CMAKE_CXX_STANDARD 14)
+endif()
 
-find_package(catkin REQUIRED COMPONENTS
-        geometry_msgs
-        xbot_msgs
-        roscpp
-        serial
-        robot_localization
-        tf2_geometry_msgs
-        tf2
-        )
+find_package(Boost REQUIRED)
+find_package(ament_cmake REQUIRED)
 
-# Geographiclib installs FindGeographicLib.cmake to this non-standard location
-set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "/usr/share/cmake/geographiclib/")
-find_package(GeographicLib REQUIRED)
+find_package(geometry_msgs REQUIRED)
+find_package(rclcpp REQUIRED)
+find_package(robot_localization REQUIRED)
+find_package(sensor_msgs REQUIRED)
+find_package(serial_driver REQUIRED)
+find_package(std_msgs REQUIRED)
+find_package(rtcm_msgs REQUIRED)
+find_package(tf2 REQUIRED)
+find_package(tf2_geometry_msgs REQUIRED)
 
+include_directories(include)
 
-set(EP_NEMATODE "NemaTode")
-ExternalProject_Add(
-        ${EP_NEMATODE}
-
-        PREFIX ${EP_NEMATODE}
-        GIT_REPOSITORY https://github.com/ClemensElflein/NemaTode
-        GIT_TAG b9ea99be965167a67c6e238336de15304cdb8002
-        GIT_SHALLOW OFF
-
-        BUILD_ALWAYS OFF
-
-        INSTALL_COMMAND cmake -E echo "Skipping install step."
-
-        CMAKE_CACHE_ARGS
-        BUILD_COMMAND ${CMAKE_COMMAND} --build <BINARY_DIR> --config Release
-)
-
-
-find_package(
-        Boost
-)
-
-
-catkin_package(
-        #  INCLUDE_DIRS include
-        #  LIBRARIES mower_comms
-        #  CATKIN_DEPENDS mower_msgs roscpp serial
-        #  DEPENDS system_lib
-        DEPENDS GeographicLib
-)
-
-###########
-## Build ##
-###########
-
-ExternalProject_Get_property(${EP_NEMATODE} SOURCE_DIR)
-message("Source dir of ${EP_NEMATODE} = ${SOURCE_DIR}")
-include_directories(${SOURCE_DIR}/include)
-
-
-include_directories(
-        # include
-        ${catkin_INCLUDE_DIRS}
-)
-
-add_executable(driver_gps_node
+# Build the executable
+add_executable(ublox_f9p
         src/driver_gps_node.cpp
-        src/ublox_gps_interface.h
+        src/gps_interface.cpp
+        src/gps_interface.h
         src/ublox_gps_interface.cpp
-        src/ubx_datatypes.h src/gps_interface.h src/gps_interface.cpp src/nmea_gps_interface.cpp src/nmea_gps_interface.h)
+        src/ublox_gps_interface.h
+        src/ubx_datatypes.h
+)
 
+ament_target_dependencies(ublox_f9p
+        geometry_msgs
+        rclcpp
+        robot_localization
+        sensor_msgs
+        serial_driver
+        std_msgs
+        rtcm_msgs
+        tf2
+        tf2_geometry_msgs
+)
 
-add_dependencies(driver_gps_node ${catkin_EXPORTED_TARGETS} ${${PROJECT_NAME}_EXPORTED_TARGETS})
-add_dependencies(driver_gps_node ${EP_NEMATODE})
-ExternalProject_Get_property(${EP_NEMATODE} BINARY_DIR)
-target_link_libraries(driver_gps_node ${catkin_LIBRARIES} ${GeographicLib_LIBRARIES} ${BINARY_DIR}/libNemaTode.a)
+# Installation and export info
+install(TARGETS
+        ublox_f9p
+        DESTINATION lib/${PROJECT_NAME}
+)
+
+ament_package()
