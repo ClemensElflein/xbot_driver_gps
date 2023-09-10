@@ -14,11 +14,14 @@ UbloxF9PNode::UbloxF9PNode(const rclcpp::NodeOptions &options) : rclcpp::Node(UB
         imuPublisher = this->create_publisher<sensor_msgs::msg::Imu>("imu", 10);
     }
 
-    this->rtcmSubscription = this->create_subscription<rtcm_msgs::msg::Message>("/rtcm", 10, std::bind(&UbloxF9PNode::rtcmCallback, this, std::placeholders::_1));
+    this->rtcmSubscription = this->create_subscription<rtcm_msgs::msg::Message>("/rtcm", 10,
+                                                                                std::bind(&UbloxF9PNode::rtcmCallback,
+                                                                                          this, std::placeholders::_1));
 
     RCLCPP_INFO(this->get_logger(), "UbloxF9PNode started");
     gpsInterface = new UbxGpsInterface();
-    gpsInterface->set_log_function(std::bind(&UbloxF9PNode::gpsLogCallback, this, std::placeholders::_1, std::placeholders::_2));
+    gpsInterface->set_log_function(
+            std::bind(&UbloxF9PNode::gpsLogCallback, this, std::placeholders::_1, std::placeholders::_2));
     gpsInterface->set_state_callback(std::bind(&UbloxF9PNode::gpsStateCallback, this, std::placeholders::_1));
     gpsInterface->set_imu_callback(std::bind(&UbloxF9PNode::imuCallback, this, std::placeholders::_1));
 }

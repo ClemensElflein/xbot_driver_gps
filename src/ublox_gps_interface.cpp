@@ -87,7 +87,7 @@ bool UbxGpsInterface::validate_checksum(const uint8_t *packet, size_t size) {
 }
 
 void UbxGpsInterface::process_ubx_packet(const time_point<steady_clock> &header_stamp, const uint8_t *data,
-                                      const size_t &size) {
+                                         const size_t &size) {
     // data = no header bytes (starts with class) and stops before checksum
 
     uint16_t packet_id = data[0] << 8 | data[1];
@@ -254,16 +254,13 @@ void UbxGpsInterface::handle_nav_pvt(const time_point<steady_clock> &header_stam
 }
 
 
-
-
-
 UbxGpsInterface::UbxGpsInterface() : GpsInterface() {
     wheel_latency_callback = nullptr;
 }
 
 
 void UbxGpsInterface::send_wheel_ticks(uint32_t timestamp, bool direction_left, uint32_t ticks_left,
-                                    bool direction_right, uint32_t ticks_right) {
+                                       bool direction_right, uint32_t ticks_right) {
     uint8_t frame[8 + 2 * 4 + 8] = {0};
     // Set the message class and ID
     frame[2] = 0x10;
@@ -302,7 +299,7 @@ void UbxGpsInterface::calculate_checksum(const uint8_t *packet, size_t size, uin
 }
 
 void UbxGpsInterface::handle_esf_meas(const std::chrono::time_point<std::chrono::steady_clock> &header_stamp,
-                                   const uint8_t *payload, size_t payload_sie) {
+                                      const uint8_t *payload, size_t payload_sie) {
     uint32_t time_tag = *reinterpret_cast<const uint32_t *>(payload);
     uint16_t flags = *reinterpret_cast<const uint16_t *>(payload + 4);
     uint16_t id = *reinterpret_cast<const uint16_t *>(payload + 6);
@@ -396,7 +393,7 @@ void UbxGpsInterface::handle_esf_meas(const std::chrono::time_point<std::chrono:
         }
 
         // check, if imu frame is done
-        if(imu_fields_valid_ == 0b111111) {
+        if (imu_fields_valid_ == 0b111111) {
             imu_callback(imu_state_);
             // prevent duplicate send in case other data arrives before imu
             imu_fields_valid_ = 0b1111111;
