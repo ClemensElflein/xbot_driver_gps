@@ -1,9 +1,9 @@
-#pragma once
-
 //
 // Created by Clemens Elflein on 15.10.22.
 // Copyright (c) 2022 Clemens Elflein. All rights reserved.
 //
+
+#pragma once
 
 #pragma pack(push, 1)
             struct UbxNavPvt {

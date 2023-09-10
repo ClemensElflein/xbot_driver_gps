@@ -2,7 +2,7 @@
 // Created by clemens on 10.01.23.
 //
 
-#include "gps_interface.h"
+#include "gps_interface.hpp"
 
 using namespace std::chrono;
 

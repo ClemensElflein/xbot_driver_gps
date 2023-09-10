@@ -23,12 +23,13 @@ include_directories(include)
 
 # Build the executable
 add_executable(ublox_f9p
-        src/driver_gps_node.cpp
         src/gps_interface.cpp
-        src/gps_interface.h
+        src/gps_interface.hpp
         src/ublox_gps_interface.cpp
-        src/ublox_gps_interface.h
-        src/ubx_datatypes.h
+        src/ublox_gps_interface.hpp
+        src/ubx_datatypes.hpp
+        src/node.cpp
+        src/node_main.cpp
 )
 
 ament_target_dependencies(ublox_f9p

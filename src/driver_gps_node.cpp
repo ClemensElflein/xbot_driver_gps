@@ -7,7 +7,8 @@
 #include "std_msgs/msg/u_int32.hpp"
 #include "geometry_msgs/msg/pose_with_covariance.hpp"
 #include "sensor_msgs/msg/imu.hpp"
-#include "ublox_gps_interface.h"
+#include "sensor_msgs/msg/nav_sat_fix.hpp"
+#include "ublox_gps_interface.hpp"
 #include "geometry_msgs/geometry_msgs/msg/pose.hpp"
 #include <tf2/LinearMath/Quaternion.h>
 #include <tf2_geometry_msgs/tf2_geometry_msgs.h>
@@ -17,16 +18,15 @@
 #include <boost/date_time/posix_time/posix_time.hpp>
 #include <boost/date_time/posix_time/posix_time_io.hpp>
 
-using namespace xbot::driver::gps;
-using namespace nmea;
+sensor_msgs::msg::NavSatFix navFixMsg;
+rclcpp::Publisher<sensor_msgs::msg::NavSatFix>::SharedPtr navFixPub;
 
-ros::Publisher pose_pub;
-ros::Publisher xbot_pose_pub;
+sensor_msgs::msg::Imu imuMsg;
+rclcpp::Publisher<sensor_msgs::msg::Imu>::SharedPtr imuPub;
+
 ros::Publisher latency_pub1;
 ros::Publisher latency_pub2;
 ros::Publisher latency_pub3;
-ros::Publisher imu_pub;
-ros::Publisher vrs_nmea_pub;
 
 bool isUbxInterface = false;
 GpsInterface *gpsInterface;
@@ -183,13 +183,22 @@ void convert_gps_result(const GpsInterface::GpsState &state, xbot_msgs::Absolute
 }
 
 void gps_state_received(const GpsInterface::GpsState &state) {
-    // new state received, publish
-    convert_gps_result(state, pose_result);
-    xbot_pose_pub.publish(pose_result);
-    pose_pub.publish(pose_result.pose);
+    navFixMsg.header.seq++;
+    navFixMsg.header.frame_id = "gps";
+    navFixMsg.header.stamp = rclcpp::Time::now();
 
-    // send feedback to VRS
-    generate_nmea(state.pos_lat, state.pos_lon);
+    navFixMsg.latitude = state.pos_n;
+    navFixMsg.longitude = state.pos_e;
+    navFixMsg.altitude = state.pos_u;
+
+    navFixMsg.position_covariance = {
+            pow(state.position_accuracy, 2), 0.0, 0.0,
+            0.0, pow(state.position_accuracy, 2), 0.0,
+            0.0, 0.0, pow(state.position_accuracy, 2)
+    };
+    navFixMsg.position_covariance_type = sensor_msgs::msg::NavSatFix::COVARIANCE_TYPE_DIAGONAL_KNOWN;
+
+    navFixPub.
 }
 
 void
@@ -205,7 +214,7 @@ wheel_latency_received(uint32_t wheel_tick_stamp, uint32_t wheel_tick_stamp_ublo
 
 void
 imu_received(const GpsInterface::ImuState &state) {
-    imu_msg.header.stamp = ros::Time::now();
+    imu_msg.header.stamp =
     imu_msg.header.frame_id = "gps";
     imu_msg.header.seq++;
     imu_msg.angular_velocity.x = state.gx;
@@ -219,10 +228,10 @@ imu_received(const GpsInterface::ImuState &state) {
 
 int main(int argc, char **argv) {
     rclcpp::init(argc, argv);
-    auto node = rclcpp::Node::make_shared("ublox_f9p");
-    auto paramNode = rclcpp::Node::make_shared("ublox_f9p_param_node");
+    auto node = rclcpp::Node("gps_node");
 
-    RCLCPP_INFO(node->get_logger(), "Using UBX mode for GPS");
+    navFixPub = node.create_publisher<sensor_msgs::msg::NavSatFix>("/gps/fix", 10);
+
     gpsInterface = new UbxGpsInterface();
     gpsInterface->set_log_function(gps_log);
 

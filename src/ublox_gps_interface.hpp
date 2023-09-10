@@ -3,8 +3,7 @@
 // Copyright (c) 2022 Clemens Elflein. All rights reserved.
 //
 
-#ifndef XBOT_WORKSPACE_UBLOX_GPS_INTERFACE_H
-#define XBOT_WORKSPACE_UBLOX_GPS_INTERFACE_H
+#pragma once
 
 #include <pthread.h>
 #include <mutex>
@@ -13,7 +12,7 @@
 #include <condition_variable>
 #include <unistd.h>
 #include <deque>
-#include "ubx_datatypes.h"
+#include "ubx_datatypes.hpp"
 #include "robot_localization/robot_localization/navsat_conversions.hpp"
 #include "gps_interface.h"
 
@@ -88,5 +87,3 @@
         }
     }
 }
-
-#endif //XBOT_WORKSPACE_UBLOX_GPS_INTERFACE_H
