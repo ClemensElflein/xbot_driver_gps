@@ -240,7 +240,6 @@ void UBlox::navPacketHandler(const std::chrono::time_point<std::chrono::steady_c
     double lat = (double) packet->lat / 10000000.0;
     double lon = (double) packet->lon / 10000000.0;
     double altitude = (double) packet->height / 1000.0;
-    double u = (double) packet->hMSL / 1000.0;
     double e, n;
     std::string zone;
     robot_localization::navsat_conversions::LLtoUTM(lat, lon, n, e, zone);
@@ -250,7 +249,6 @@ void UBlox::navPacketHandler(const std::chrono::time_point<std::chrono::steady_c
     gpsState.position_valid = true;
     gpsState.pos_e = e;
     gpsState.pos_n = n;
-    gpsState.pos_u = u;
     gpsState.position_accuracy = (double) sqrt(
             pow((double) packet->hAcc / 1000.0, 2) + pow((double) packet->vAcc / 1000.0, 2));
 
