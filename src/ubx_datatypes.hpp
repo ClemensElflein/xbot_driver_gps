@@ -5,6 +5,8 @@
 
 #pragma once
 
+#include <vector>
+
 #pragma pack(push, 1)
 struct UbxNavPvt {
     enum {
@@ -74,4 +76,8 @@ struct UbxNavPvt {
     int16_t magDec;
     uint16_t magAcc;
 } __attribute__((packed));
+
+typedef std::shared_ptr<UbxNavPvt> UbxNavPvtPtr;
+typedef std::shared_ptr<UbxNavPvt const> UbxNavPvtConstPtr;
+
 #pragma pack(pop)

@@ -7,7 +7,7 @@ if(NOT CMAKE_CXX_STANDARD)
 endif()
 
 find_package(Boost REQUIRED)
-find_package(ament_cmake REQUIRED)
+find_package(ament_cmake_auto REQUIRED)
 
 find_package(geometry_msgs REQUIRED)
 find_package(rclcpp REQUIRED)
@@ -23,13 +23,11 @@ include_directories(include)
 
 # Build the executable
 add_executable(ublox_f9p
-        src/gps_interface.cpp
-        src/gps_interface.hpp
-        src/ublox_gps_interface.cpp
-        src/ublox_gps_interface.hpp
         src/ubx_datatypes.hpp
         src/node.cpp
         src/node_main.cpp
+        src/ublox.hpp
+        src/ublox.cpp
 )
 
 ament_target_dependencies(ublox_f9p
