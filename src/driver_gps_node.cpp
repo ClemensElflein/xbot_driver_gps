@@ -187,13 +187,27 @@ void convert_gps_result(const GpsInterface::GpsState &state, xbot_msgs::Absolute
 }
 
 void gps_state_received(const GpsInterface::GpsState &state) {
-    // new state received, publish
-    convert_gps_result(state, pose_result);
-    xbot_pose_pub.publish(pose_result);
-    pose_pub.publish(pose_result.pose);
+  static ros::Subscriber rtcm_sub;
+  static int rtcm_connected=0;
+  // new state received, publish
+  convert_gps_result(state, pose_result);
+  pose_pub.publish(pose_result.pose);
 
+  if (xbot_pose_pub.getNumSubscribers()>0) {
+    if (!rtcm_connected) {
+      rtcm_sub = n->subscribe("rtcm", 0, rtcm_received,
+                             ros::TransportHints().tcpNoDelay(true));
+      rtcm_connected=1;
+    }
+    xbot_pose_pub.publish(pose_result);
     // send feedback to VRS
     generate_nmea(state.pos_lat, state.pos_lon);
+  } else {
+    if (rtcm_connected) {
+      rtcm_connected=0;
+      rtcm_sub.shutdown();
+    }
+  }
 }
 
 void
@@ -226,7 +240,7 @@ int main(int argc, char **argv) {
 
     ros::init(argc, argv, "xbot_driver_gps");
 
-    ros::NodeHandle n;
+    n=new ros::NodeHandle();
     ros::NodeHandle paramNh("~");
 
     isUbxInterface = paramNh.param("ubx_mode", true);
@@ -277,11 +291,8 @@ int main(int argc, char **argv) {
     // Subscribe to wheel ticks
     ros::Subscriber wheel_tick_sub = paramNh.subscribe("wheel_ticks", 0, wheel_tick_received,
                                                        ros::TransportHints().tcpNoDelay(true));
-    ros::Subscriber rtcm_sub = n.subscribe("rtcm", 0, rtcm_received,
-                                           ros::TransportHints().tcpNoDelay(true));
 
-
-    vrs_nmea_pub = n.advertise<nmea_msgs::Sentence>("/nmea", 10);
+    vrs_nmea_pub = n->advertise<nmea_msgs::Sentence>("/nmea", 10);
     pose_pub = paramNh.advertise<geometry_msgs::PoseWithCovariance>("pose", 10);
     xbot_pose_pub = paramNh.advertise<xbot_msgs::AbsolutePose>("xb_pose", 10);
     imu_pub = paramNh.advertise<sensor_msgs::Imu>("imu", 10);
