@@ -83,7 +83,7 @@ xbot::driver::gps::NmeaGpsInterface::NmeaGpsInterface() : GpsInterface(), gps(pa
         // speed in m/s
         double speed = fix.speed / 3.6;
         double angle_rad = fix.travelAngle * M_PI / 180.0;
-        gps_state_.vel_e = -sin(angle_rad) * speed;
+        gps_state_.vel_e = sin(angle_rad) * speed;
         gps_state_.vel_n = cos(angle_rad) * speed;
         gps_state_.vel_u = 0;
 
