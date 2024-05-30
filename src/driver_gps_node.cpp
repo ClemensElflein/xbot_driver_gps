@@ -4,6 +4,7 @@
 //
 
 #include "ros/ros.h"
+#include "serial_gps_device.h"
 #include "ublox_gps_interface.h"
 #include "nmea_gps_interface.h"
 #include "xbot_msgs/WheelTick.h"
@@ -249,8 +250,10 @@ int main(int argc, char **argv) {
         ROS_INFO_STREAM("Reading GPS data from file!");
         gpsInterface->set_file_name(paramNh.param("filename", std::string("/dev/null")));
     } else {
-        gpsInterface->set_baudrate(paramNh.param("baudrate", 38400));
-        gpsInterface->set_serial_port(paramNh.param("serial_port", std::string("/dev/ttyACM0")));
+        SerialGpsDevice *device = new SerialGpsDevice();
+        device->set_baudrate(paramNh.param("baudrate", 38400));
+        device->set_serial_port(paramNh.param("serial_port", std::string("/dev/ttyACM0")));
+        gpsInterface->set_device(device);
     }
 
     std::string mode = paramNh.param("mode", std::string("absolute"));

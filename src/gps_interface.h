@@ -5,7 +5,7 @@
 #ifndef OPEN_MOWER_ROS_GPS_INTERFACE_H
 #define OPEN_MOWER_ROS_GPS_INTERFACE_H
 
-#include <serial/serial.h>
+#include <vector>
 #include <functional>
 #include <chrono>
 #include <pthread.h>
@@ -17,6 +17,7 @@
 #include <filesystem>
 #include <fstream>
 #include "gps_log.h"
+#include "gps_device.h"
 namespace xbot {
     namespace driver {
         namespace gps {
@@ -94,12 +95,10 @@ namespace xbot {
 
 
             public:
+                void set_device(GpsDevice *device);
                 void set_imu_callback(const GpsInterface::ImuCallback &function);
                 void set_state_callback(const GpsInterface::StateCallback &function);
                 void set_log_function(const LogFunction &function);
-
-                void set_serial_port(std::string port);
-                void set_baudrate(uint32_t baudrate);
 
                 void set_datum(double datum_lat, double datum_long, double datum_height);
                 void set_mode(Mode mode);
@@ -136,11 +135,11 @@ namespace xbot {
                 std::deque<uint8_t> rx_buffer_;
 
                 /**
-                 * Send a message to the GPS. This will just output to the serial port directly
+                 * Send a message to the GPS. This will just output to the device directly
                  */
                 bool send_raw(const void *data, size_t size);
 
-                // Called on serial reconnect
+                // Called on device reconnect
                 virtual void reset_parser_state() = 0;
 
                 virtual size_t parse_rx_buffer() = 0;
@@ -183,9 +182,7 @@ namespace xbot {
                 pthread_t rx_thread_handle_;
                 pthread_t tx_thread_handle_;
 
-                serial::Serial serial_;
-                std::string port_;
-                uint32_t baudrate_;
+                GpsDevice *device_;
 
                 bool read_from_file_;
                 std::string filename;
