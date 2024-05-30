@@ -17,9 +17,9 @@ size_t xbot::driver::gps::NmeaGpsInterface::parse_rx_buffer() {
             try {
                 parser.readByte(rx_buffer_[i]);
             } catch (nmea::NMEAParseError &e) {
-                log(std::string("NMEA parse exception. message: ")+e.message + ", sentence: " + e.nmea.text, Level::WARN);
+                log(std::string("NMEA parse exception. message: ")+e.message + ", sentence: " + e.nmea.text, WARN);
             } catch (std::exception &e) {
-                log(std::string("NMEA parse exception: ")+e.what(), Level::WARN);
+                log(std::string("NMEA parse exception: ")+e.what(), WARN);
             }
         }
         rx_buffer_.erase(rx_buffer_.begin(), rx_buffer_.begin() + size);

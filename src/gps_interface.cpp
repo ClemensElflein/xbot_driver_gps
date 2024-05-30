@@ -19,7 +19,7 @@ namespace xbot {
 
 
 
-            void GpsInterface::set_log_function(const GpsInterface::LogFunction &function) {
+            void GpsInterface::set_log_function(const LogFunction &function) {
                 log = function;
             }
 
@@ -117,7 +117,7 @@ namespace xbot {
                 std::ifstream file(filename, std::ios::in | std::ios::binary);
                 if (!file.is_open()) {
                     if(log) {
-                        log("error opening file.", Level::ERROR);
+                        log("error opening file.", ERROR);
                     }
                     return nullptr;
                 }
@@ -136,7 +136,7 @@ namespace xbot {
                     }
                 }
 
-                log("end of file", Level::INFO);
+                log("end of file", INFO);
 
                 return nullptr;
             }
@@ -261,7 +261,7 @@ namespace xbot {
                     pthread_create(&tx_thread_handle_, NULL, &GpsInterface::tx_thread_helper, this);
                 } else {
                     if(log) {
-                        log("reading from file: " + filename, Level::WARN);
+                        log("reading from file: " + filename, WARN);
                     }
                     pthread_create(&rx_thread_handle_, NULL, &GpsInterface::rx_thread_helper_file, this);
                     pthread_create(&tx_thread_handle_, NULL, &GpsInterface::tx_thread_helper_file, this);

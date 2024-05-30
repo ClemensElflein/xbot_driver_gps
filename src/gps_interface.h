@@ -16,6 +16,7 @@
 #include "deque"
 #include <filesystem>
 #include <fstream>
+#include "gps_log.h"
 namespace xbot {
     namespace driver {
         namespace gps {
@@ -82,19 +83,11 @@ namespace xbot {
                     double gx,gy,gz;
                 };
 
-                enum Level {
-                    VERBOSE,
-                    INFO,
-                    WARN,
-                    ERROR
-                };
-
                 enum Mode {
                     ABSOLUTE = 1,
                     RELATIVE = 2
                 };
 
-                typedef std::function<void(const std::string &, Level level)> LogFunction;
                 typedef std::function<void(const GpsState &new_state)> StateCallback;
                 typedef std::function<void(const ImuState &new_state)> ImuCallback;
 
@@ -103,7 +96,7 @@ namespace xbot {
             public:
                 void set_imu_callback(const GpsInterface::ImuCallback &function);
                 void set_state_callback(const GpsInterface::StateCallback &function);
-                void set_log_function(const GpsInterface::LogFunction &function);
+                void set_log_function(const LogFunction &function);
 
                 void set_serial_port(std::string port);
                 void set_baudrate(uint32_t baudrate);

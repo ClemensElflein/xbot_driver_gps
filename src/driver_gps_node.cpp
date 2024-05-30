@@ -88,18 +88,18 @@ void generate_nmea(double lat_in, double lon_in) {
     vrs_nmea_pub.publish(vrs_msg);
 }
 
-void gps_log(std::string text, GpsInterface::Level level) {
+void gps_log(std::string text, LogLevel level) {
     switch (level) {
-        case GpsInterface::Level::VERBOSE:
+        case VERBOSE:
             if (!allow_verbose_logging) {
                 return;
             }
             ROS_INFO_STREAM("[driver_gps] " << text);
             break;
-        case GpsInterface::Level::INFO:
+        case INFO:
             ROS_INFO_STREAM("[driver_gps] " << text);
             break;
-        case GpsInterface::Level::WARN:
+        case WARN:
             ROS_WARN_STREAM("[driver_gps] " << text);
             break;
         default:
