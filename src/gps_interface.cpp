@@ -83,6 +83,7 @@ namespace xbot {
                     log(std::string("writing ") + std::to_string(tx_buffer_.size()) + " bytes of data", VERBOSE);
                     if (!device_->is_open()) {
                         log("device is closed, dropping data", WARN);
+                        tx_buffer_.clear();
                         continue;
                     }
 
