@@ -72,6 +72,8 @@ add_executable(driver_gps_node
         src/gps_device.h
         src/serial_gps_device.cpp
         src/serial_gps_device.h
+        src/tcp_gps_device.cpp
+        src/tcp_gps_device.h
         src/ublox_gps_interface.cpp
         src/ublox_gps_interface.h
         src/ubx_datatypes.h
