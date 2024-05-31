@@ -246,14 +246,18 @@ int main(int argc, char **argv) {
         ROS_WARN("GPS node has verbose logging enabled");
     }
 
-    if(paramNh.param("read_from_file", false)) {
-        ROS_INFO_STREAM("Reading GPS data from file!");
-        gpsInterface->set_file_name(paramNh.param("filename", std::string("/dev/null")));
-    } else {
+    std::string device_type = paramNh.param("device_type", std::string("serial"));
+    if (device_type == "serial") {
         SerialGpsDevice *device = new SerialGpsDevice();
         device->set_baudrate(paramNh.param("baudrate", 38400));
         device->set_serial_port(paramNh.param("serial_port", std::string("/dev/ttyACM0")));
         gpsInterface->set_device(device);
+    } else if (device_type == "file") {
+        ROS_INFO_STREAM("Reading GPS data from file!");
+        gpsInterface->set_file_name(paramNh.param("filename", std::string("/dev/null")));
+    } else {
+        ROS_ERROR_STREAM("Invalid device type");
+        return 2;
     }
 
     std::string mode = paramNh.param("mode", std::string("absolute"));
