@@ -4,10 +4,10 @@
 //
 
 #include "ros/ros.h"
-#include "serial_gps_device.h"
-#include "tcp_gps_device.h"
-#include "ublox_gps_interface.h"
-#include "nmea_gps_interface.h"
+#include "devices/serial_gps_device.h"
+#include "devices/tcp_gps_device.h"
+#include "interfaces/ublox_gps_interface.h"
+#include "interfaces/nmea_gps_interface.h"
 #include "xbot_msgs/WheelTick.h"
 #include "geometry_msgs/PoseWithCovariance.h"
 #include "xbot_msgs/AbsolutePose.h"

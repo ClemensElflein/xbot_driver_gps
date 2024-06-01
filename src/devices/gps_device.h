@@ -1,7 +1,7 @@
 #ifndef OPEN_MOWER_ROS_GPS_DEVICE_H
 #define OPEN_MOWER_ROS_GPS_DEVICE_H
 
-#include "gps_log.h"
+#include "../gps_log.h"
 #include <vector>
 
 namespace xbot {

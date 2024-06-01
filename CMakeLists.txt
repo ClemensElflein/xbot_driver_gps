@@ -65,21 +65,21 @@ include_directories(
 
 add_executable(driver_gps_node
         src/driver_gps_node.cpp
-        src/gps_interface.cpp
-        src/gps_interface.h
         src/gps_log.h
-        src/gps_device.cpp
-        src/gps_device.h
-        src/serial_gps_device.cpp
-        src/serial_gps_device.h
-        src/tcp_gps_device.cpp
-        src/tcp_gps_device.h
-        src/ublox_gps_interface.cpp
-        src/ublox_gps_interface.h
-        src/ubx_datatypes.h
-        src/nmea_gps_interface.cpp
-        src/nmea_gps_interface.h)
-
+        src/devices/gps_device.cpp
+        src/devices/gps_device.h
+        src/devices/serial_gps_device.cpp
+        src/devices/serial_gps_device.h
+        src/devices/tcp_gps_device.cpp
+        src/devices/tcp_gps_device.h
+        src/interfaces/gps_interface.cpp
+        src/interfaces/gps_interface.h
+        src/interfaces/nmea_gps_interface.cpp
+        src/interfaces/nmea_gps_interface.h
+        src/interfaces/ublox_gps_interface.cpp
+        src/interfaces/ublox_gps_interface.h
+        src/interfaces/ubx_datatypes.h
+)
 
 add_dependencies(driver_gps_node ${catkin_EXPORTED_TARGETS} ${${PROJECT_NAME}_EXPORTED_TARGETS})
 add_dependencies(driver_gps_node ${EP_NEMATODE})

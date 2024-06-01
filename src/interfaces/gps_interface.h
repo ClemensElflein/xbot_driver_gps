@@ -16,8 +16,8 @@
 #include "deque"
 #include <filesystem>
 #include <fstream>
-#include "gps_log.h"
-#include "gps_device.h"
+#include "../gps_log.h"
+#include "../devices/gps_device.h"
 namespace xbot {
     namespace driver {
         namespace gps {
