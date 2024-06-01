@@ -81,13 +81,14 @@ namespace xbot {
                     }
 
                     log(std::string("writing ") + std::to_string(tx_buffer_.size()) + " bytes of data", VERBOSE);
-                    if (!device_->is_open()) {
-                        log("device is closed, dropping data", WARN);
-                        tx_buffer_.clear();
-                        continue;
-                    }
 
                     while (!tx_buffer_.empty()) {
+                        if (!device_->is_open()) {
+                            log("device is closed, dropping data", WARN);
+                            tx_buffer_.clear();
+                            break;
+                        }
+
                         try {
                             size_t written = device_->write(tx_buffer_.data(), tx_buffer_.size());
                             if (written != tx_buffer_.size()) {
