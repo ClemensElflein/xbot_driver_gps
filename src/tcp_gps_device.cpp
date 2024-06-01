@@ -96,7 +96,6 @@ namespace xbot {
 
             size_t TcpGpsDevice::write(const uint8_t *data, size_t size) {
                 ssize_t bytes_written = ::write(sockfd_, data, size);
-                log("wanted to write " + std::to_string(size) + " bytes, wrote " + std::to_string(bytes_written), INFO);
                 if (bytes_written == -1) {
                     throw std::system_error(errno, std::generic_category());
                 }
