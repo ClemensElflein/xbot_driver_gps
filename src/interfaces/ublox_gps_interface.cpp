@@ -32,8 +32,8 @@ namespace xbot {
              */
             size_t UbxGpsInterface::parse_rx_buffer() {
                 while (rx_buffer_.size() >= 6) {
-                    // skip to the 0xb5
-                    if (rx_buffer_[0] != 0x05 && rx_buffer_[1] != 0x62) {
+                    // skip to the 0xb5,0x62 (beginning of ubx header)
+                    if (rx_buffer_[0] != 0xb5 || rx_buffer_[1] != 0x62) {
                         rx_buffer_.pop_front();
                         log("skipping rx byte", WARN);
                         found_header_ = false;
