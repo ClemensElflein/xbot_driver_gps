@@ -9,17 +9,12 @@ using namespace std::chrono;
 namespace xbot {
     namespace driver {
         namespace gps {
-            void GpsInterface::set_serial_port(std::string port) {
-                port_ = port;
+            void GpsInterface::set_device(GpsDevice *device) {
+                device->set_log_function(log);
+                device_ = device;
             }
 
-            void GpsInterface::set_baudrate(uint32_t baudrate) {
-                baudrate_ = baudrate;
-            }
-
-
-
-            void GpsInterface::set_log_function(const GpsInterface::LogFunction &function) {
+            void GpsInterface::set_log_function(const LogFunction &function) {
                 log = function;
             }
 
@@ -86,23 +81,25 @@ namespace xbot {
                     }
 
                     log(std::string("writing ") + std::to_string(tx_buffer_.size()) + " bytes of data", VERBOSE);
-                    if (!serial_.isOpen()) {
-                        log("serial is closed, dropping data", WARN);
-                        continue;
-                    }
 
                     while (!tx_buffer_.empty()) {
+                        if (!device_->is_open()) {
+                            log("device is closed, dropping data", WARN);
+                            tx_buffer_.clear();
+                            break;
+                        }
+
                         try {
-                            size_t written = serial_.write(tx_buffer_.data(), tx_buffer_.size());
+                            size_t written = device_->write(tx_buffer_.data(), tx_buffer_.size());
                             if (written != tx_buffer_.size()) {
-                                log("not all data has been written to serial. tx_buffer size: " +
+                                log("not all data has been written to the device. tx_buffer size: " +
                                     std::to_string(tx_buffer_.size()) + ", written: " + std::to_string(written), WARN);
                                 tx_buffer_.erase(tx_buffer_.begin(), tx_buffer_.begin() + written);
                             } else {
                                 tx_buffer_.clear();
                             }
                         } catch (std::exception &e) {
-                            log("error writing to serial port!", ERROR);
+                            log("error writing to the device!", ERROR);
                         }
                     }
                 }
@@ -117,7 +114,7 @@ namespace xbot {
                 std::ifstream file(filename, std::ios::in | std::ios::binary);
                 if (!file.is_open()) {
                     if(log) {
-                        log("error opening file.", Level::ERROR);
+                        log("error opening file.", ERROR);
                     }
                     return nullptr;
                 }
@@ -136,7 +133,7 @@ namespace xbot {
                     }
                 }
 
-                log("end of file", Level::INFO);
+                log("end of file", INFO);
 
                 return nullptr;
             }
@@ -173,21 +170,13 @@ namespace xbot {
                 size_t bytes_to_read = parse_rx_buffer();
 
                 while (!stopped_) {
-                    // Check, if the serial port is connected. If not, connect to it.
-                    if (!serial_.isOpen()) {
+                    // Check, if the device is connected. If not, connect to it.
+                    if (!device_->is_open()) {
                         bytes_to_read = parse_rx_buffer();
                         reset_parser_state();
                         gps_state_valid_ = false;
-                        log("opening serial port: " + port_ + " with baudrate: " + std::to_string(baudrate_), INFO);
-                        try {
-                            serial_.setPort(port_);
-                            serial_.setBaudrate(baudrate_);
-                            auto to = serial::Timeout::simpleTimeout(100);
-                            serial_.setTimeout(to);
-                            serial_.open();
-                        } catch (std::exception &e) {
+                        if (!device_->open()) {
                             // retry later
-                            log("error opening serial port.", ERROR);
                             sleep(1);
                             continue;
                         }
@@ -198,21 +187,21 @@ namespace xbot {
                         }
                     }
 
-                    // Serial port connected, read data
+                    // Device connected, read data
                     try {
-                        int bytes_read = serial_.read(buf, bytes_to_read);
+                        int bytes_read = device_->read(buf, bytes_to_read);
                         if (bytes_read) {
                             rx_buffer_.insert(rx_buffer_.end(), buf.begin(), buf.end());
                             buf.clear();
                             bytes_to_read = parse_rx_buffer();
                         }
                     } catch (std::exception &e) {
-                        log("error during serial read. reconnecting.", ERROR);
-                        serial_.close();
+                        log("error while reading from device. reconnecting.", ERROR);
+                        device_->close();
                     }
                 }
 
-                serial_.close();
+                device_->close();
 
                 return nullptr;
             }
@@ -220,9 +209,9 @@ namespace xbot {
 
             void GpsInterface::stop() {
                 stopped_ = true;
-                log("waiting for serial rx thread to stop", INFO);
+                log("waiting for device rx thread to stop", INFO);
                 pthread_join(rx_thread_handle_, nullptr);
-                log("waiting for serial tx thread to stop", INFO);
+                log("waiting for device tx thread to stop", INFO);
                 pthread_join(tx_thread_handle_, nullptr);
             }
 
@@ -240,12 +229,7 @@ namespace xbot {
                     return false;
                 }
 
-                if (baudrate_ == 0 && !read_from_file_) {
-                    log("no baudrate set, can't start", ERROR);
-                    return false;
-                }
-                if (port_.empty() && !read_from_file_) {
-                    log("no serial port set, can't start", ERROR);
+                if (!device_->check_parameters()) {
                     return false;
                 }
 
@@ -261,7 +245,7 @@ namespace xbot {
                     pthread_create(&tx_thread_handle_, NULL, &GpsInterface::tx_thread_helper, this);
                 } else {
                     if(log) {
-                        log("reading from file: " + filename, Level::WARN);
+                        log("reading from file: " + filename, WARN);
                     }
                     pthread_create(&rx_thread_handle_, NULL, &GpsInterface::rx_thread_helper_file, this);
                     pthread_create(&tx_thread_handle_, NULL, &GpsInterface::tx_thread_helper_file, this);
