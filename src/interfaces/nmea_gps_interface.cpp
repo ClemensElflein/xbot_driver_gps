@@ -77,8 +77,7 @@ xbot::driver::gps::NmeaGpsInterface::NmeaGpsInterface() : GpsInterface(), gps(pa
         gps_state_.pos_n = n - datum_n_;
         gps_state_.pos_u = fix.altitude - datum_u_;
 
-        gps_state_.position_accuracy = (double) sqrt(
-                pow(fix.horizontalAccuracy(), 2) + pow(fix.verticalAccuracy(), 2));
+        gps_state_.position_accuracy = fix.horizontalAccuracy();
 
         // speed in m/s
         double speed = fix.speed / 3.6;

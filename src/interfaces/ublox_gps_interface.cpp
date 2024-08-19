@@ -211,8 +211,7 @@ namespace xbot {
                 gps_state_.pos_e = e - datum_e_;
                 gps_state_.pos_n = n - datum_n_;
                 gps_state_.pos_u = u - datum_u_;
-                gps_state_.position_accuracy = (double) sqrt(
-                        pow((double) msg->hAcc / 1000.0, 2) + pow((double) msg->vAcc / 1000.0, 2));
+                gps_state_.position_accuracy = (double) msg->hAcc / 1000.0;
 
                 gps_state_.vel_e = msg->velE / 1000.0;
                 gps_state_.vel_n = msg->velN / 1000.0;
@@ -427,4 +426,3 @@ namespace xbot {
         }
     }
 }
-
