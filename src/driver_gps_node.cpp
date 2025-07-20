@@ -76,7 +76,7 @@ void generate_nmea(double lat_in, double lon_in) {
                lat.substr(0, lat.length() - 1) << "," <<
                lat_hemisphere << "," <<
                lon.substr(0, lon.length() - 1) << "," <<
-               lon_hemisphere << ",1,0,0,0,M,0,M,0000,";
+               lon_hemisphere << ",1,8,0,0,M,0,M,0000,";
 
     //build message
     cmd1.name = "GPGGA";
